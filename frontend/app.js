@@ -2,6 +2,27 @@ const form = document.getElementById('prediction-form');
 const status = document.getElementById('status');
 const resultState = document.getElementById('result-state');
 const submitButton = document.getElementById('submit-button');
+const activeModelBadge = document.getElementById('active-model');
+
+async function loadModelInfo() {
+  if (!activeModelBadge) {
+    return;
+  }
+
+  try {
+    const response = await fetch('/model-info');
+    if (!response.ok) {
+      throw new Error(`status ${response.status}`);
+    }
+    const info = await response.json();
+    const flavor = info.is_trained_model ? 'trained' : 'baseline';
+    activeModelBadge.textContent = `Model: ${info.model_name} (${flavor})`;
+  } catch (_error) {
+    activeModelBadge.textContent = 'Model: unavailable';
+  }
+}
+
+loadModelInfo();
 
 function readFormValues() {
   const data = new FormData(form);
@@ -36,7 +57,8 @@ form.addEventListener('submit', async (event) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Prediction request failed with status ${response.status}`);
+      const details = await response.text();
+      throw new Error(`Prediction request failed (${response.status}): ${details}`);
     }
 
     const result = await response.json();

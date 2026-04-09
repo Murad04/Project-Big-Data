@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .schemas import HealthResponse, PredictionRequest, PredictionResponse
-from ..services.model_registry import load_active_model
+from .schemas import HealthResponse, ModelInfoResponse, PredictionRequest, PredictionResponse
+from ..services.model_registry import load_active_model, model_status
 
 app = FastAPI(
     title="Flight Delay Prediction Platform",
@@ -48,3 +48,8 @@ def predict(request: PredictionRequest) -> PredictionResponse:
         model_name=model.name,
         inputs=request.to_features(),
     )
+
+
+@app.get("/model-info", response_model=ModelInfoResponse)
+def get_model_info() -> ModelInfoResponse:
+    return ModelInfoResponse(**model_status())

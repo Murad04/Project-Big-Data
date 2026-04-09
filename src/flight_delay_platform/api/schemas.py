@@ -29,3 +29,9 @@ class PredictionResponse(BaseModel):
     predicted_delay_minutes: float
     model_name: str
     inputs: dict[str, Any]
+
+
+class ModelInfoResponse(BaseModel):
+    model_name: str
+    is_trained_model: bool
+    source: str

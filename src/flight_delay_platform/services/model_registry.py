@@ -16,6 +16,7 @@ except ModuleNotFoundError:  # pragma: no cover
 class DelayModel:
     name: str
     trained_model: Any | None = None
+    source: str = "baseline"
 
     def predict(self, features: dict[str, Any]) -> float:
         if self.trained_model is not None:
@@ -51,11 +52,55 @@ def _load_trained_model() -> DelayModel | None:
 
     trained_model = CatBoostRegressor()
     trained_model.load_model(model_path)
-    return DelayModel(name="catboost-delay-regressor", trained_model=trained_model)
+    return DelayModel(
+        name="catboost-delay-regressor",
+        trained_model=trained_model,
+        source=str(model_path),
+    )
 
 
-_ACTIVE_MODEL = _load_trained_model() or DelayModel(name="baseline-rule-model")
+_ACTIVE_MODEL: DelayModel = _load_trained_model() or DelayModel(name="baseline-rule-model", source="baseline")
+_ACTIVE_MODEL_MTIME: float | None = None
+
+
+def _model_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "models" / "catboost_delay_model.cbm"
+
+
+def _needs_reload(path: Path) -> bool:
+    global _ACTIVE_MODEL_MTIME
+
+    if not path.exists():
+        return False
+
+    current_mtime = path.stat().st_mtime
+    if _ACTIVE_MODEL_MTIME is None:
+        _ACTIVE_MODEL_MTIME = current_mtime
+        return _ACTIVE_MODEL.trained_model is None
+
+    if current_mtime > _ACTIVE_MODEL_MTIME:
+        _ACTIVE_MODEL_MTIME = current_mtime
+        return True
+
+    return _ACTIVE_MODEL.trained_model is None
 
 
 def load_active_model() -> DelayModel:
+    global _ACTIVE_MODEL
+
+    trained_path = _model_path()
+    if _needs_reload(trained_path):
+        refreshed = _load_trained_model()
+        if refreshed is not None:
+            _ACTIVE_MODEL = refreshed
+
     return _ACTIVE_MODEL
+
+
+def model_status() -> dict[str, Any]:
+    model = load_active_model()
+    return {
+        "model_name": model.name,
+        "is_trained_model": model.trained_model is not None,
+        "source": model.source,
+    }

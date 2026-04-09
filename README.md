@@ -34,4 +34,16 @@ uvicorn flight_delay_platform.api.app:app --reload --app-dir src
 ## Open The App
 - Backend health check: `http://localhost:8000/health`
 - API docs: `http://localhost:8000/docs`
+- Model status: `http://localhost:8000/model-info`
 - Frontend: `http://localhost:8000/`
+
+## Train Model
+Run this once to create a trained CatBoost model used by the backend:
+
+```cmd
+.venv\Scripts\activate
+set PYTHONPATH=src
+python -m flight_delay_platform.pipelines.train_catboost --max-rows 150000
+```
+
+After training, the API will automatically load `models/catboost_delay_model.cbm` and the frontend badge will show a trained model.

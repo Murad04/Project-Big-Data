@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
+import site
+import sys
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
 
-FLIGHTS_DATASET_URL = "https://raw.githubusercontent.com/tidyverse/nycflights13/main/data-raw/flights.csv"
-WEATHER_DATASET_URL = "https://raw.githubusercontent.com/tidyverse/nycflights13/main/data-raw/weather.csv"
+FALLBACK_DATASET_URLS: list[tuple[str, str]] = [
+    (
+        "https://raw.githubusercontent.com/tidyverse/nycflights13/master/data-raw/flights.csv",
+        "https://raw.githubusercontent.com/tidyverse/nycflights13/master/data-raw/weather.csv",
+    ),
+    (
+        "https://raw.githubusercontent.com/byuidatascience/data4python4ds/master/data-raw/flights/flights.csv",
+        "https://raw.githubusercontent.com/tidyverse/nycflights13/master/data-raw/weather.csv",
+    ),
+]
 
 
 def clean_flight_record(record: dict[str, Any]) -> dict[str, Any]:
@@ -30,15 +40,52 @@ def build_feature_row(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _load_from_installed_package_data() -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    candidate_data_dirs: list[Path] = []
+
+    for package_root in site.getsitepackages():
+        candidate_data_dirs.append(Path(package_root) / "nycflights13" / "data")
+
+    candidate_data_dirs.append(Path(sys.prefix) / "Lib" / "site-packages" / "nycflights13" / "data")
+
+    for data_dir in candidate_data_dirs:
+        flights_zip = data_dir / "flights.csv.zip"
+        weather_csv = data_dir / "weather.csv"
+        if flights_zip.exists() and weather_csv.exists():
+            flights = pd.read_csv(flights_zip)
+            weather = pd.read_csv(weather_csv)
+            return flights, weather
+
+    return None
+
+
 def download_public_datasets(data_dir: Path) -> tuple[Path, Path]:
     data_dir.mkdir(parents=True, exist_ok=True)
     flights_path = data_dir / "nyc_flights.csv"
     weather_path = data_dir / "nyc_weather.csv"
 
-    if not flights_path.exists():
-        pd.read_csv(FLIGHTS_DATASET_URL).to_csv(flights_path, index=False)
-    if not weather_path.exists():
-        pd.read_csv(WEATHER_DATASET_URL).to_csv(weather_path, index=False)
+    if flights_path.exists() and weather_path.exists():
+        return flights_path, weather_path
+
+    package_data = _load_from_installed_package_data()
+    if package_data is not None:
+        flights_df, weather_df = package_data
+        flights_df.to_csv(flights_path, index=False)
+        weather_df.to_csv(weather_path, index=False)
+        return flights_path, weather_path
+
+    for flights_url, weather_url in FALLBACK_DATASET_URLS:
+        try:
+            pd.read_csv(flights_url).to_csv(flights_path, index=False)
+            pd.read_csv(weather_url).to_csv(weather_path, index=False)
+            return flights_path, weather_path
+        except Exception:
+            continue
+
+    raise RuntimeError(
+        "Unable to fetch dataset files automatically. "
+        "Install nycflights13 in the active environment or place nyc_flights.csv and nyc_weather.csv in data/raw/."
+    )
 
     return flights_path, weather_path
 
