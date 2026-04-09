@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Flight delay prediction dashboard" />
+    <title>Flight Delay Prediction Platform</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Flight Delay Prediction Platform</p>
+        <h1>Predict delays from weather, congestion, and flight context.</h1>
+        <p class="lede">
+          This static frontend talks to the FastAPI backend and sends structured flight data to the
+          prediction endpoint.
+        </p>
+        <div class="meta-row">
+          <span>Backend: same origin</span>
+          <span>Model: streaming-ready baseline scaffold</span>
+        </div>
+      </section>
+
+      <section class="layout">
+        <form class="panel form-panel" id="prediction-form">
+          <h2>Prediction Input</h2>
+          <div class="grid">
+            <label>
+              Flight Number
+              <input name="flight_number" value="AA101" />
+            </label>
+            <label>
+              Airline Code
+              <input name="airline_code" value="AA" />
+            </label>
+            <label>
+              Origin
+              <input name="origin" value="JFK" />
+            </label>
+            <label>
+              Destination
+              <input name="destination" value="LAX" />
+            </label>
+            <label>
+              Departure Time
+              <input name="departure_time" type="datetime-local" value="2026-04-03T12:00" />
+            </label>
+            <label>
+              Weather Severity
+              <input name="weather_severity" type="number" step="0.1" min="0" max="10" value="2" />
+            </label>
+            <label>
+              Airport Congestion
+              <input name="airport_congestion" type="number" step="0.1" min="0" max="10" value="3" />
+            </label>
+            <label>
+              Day of Week
+              <input name="day_of_week" type="number" min="1" max="7" value="5" />
+            </label>
+            <label>
+              Month
+              <input name="month" type="number" min="1" max="12" value="4" />
+            </label>
+          </div>
+          <button type="submit" id="submit-button">Run Prediction</button>
+        </form>
+
+        <aside class="panel result-panel">
+          <h2>Result</h2>
+          <p class="status" id="status">Ready to predict.</p>
+          <div id="result-state" class="empty-state">
+            <p>Submit the form to see a predicted delay.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

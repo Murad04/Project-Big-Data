@@ -1,0 +1,31 @@
+# Copilot context exclusions
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Generated or bulky project outputs
+data/raw/
+data/processed/
+artifacts/
+models/
+logs/
+notebooks/.ipynb_checkpoints/
+
+# Local/temporary files
+*.log
+*.tmp
+*.swp
+Project-Idea.pdf
+
+# Frontend build artifacts and dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
