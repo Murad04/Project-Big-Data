@@ -238,11 +238,14 @@ const FEATURE_LABELS = {
   departure_hour:     'Departure Hour',
   day_of_week:        'Day of Week',
   month:              'Month',
+  is_weekend:         'Weekend Flight',
+  is_peak_hour:       'Peak Hour',
   airline_code:       'Airline',
   origin:             'Origin Airport',
-  destination:        'Destination Airport',
+  destination:        'Destination',
   route_avg_delay:    'Route Avg Delay',
   carrier_avg_delay:  'Carrier Avg Delay',
+  distance:           'Route Distance',
 };
 
 async function loadFeatureImportance() {
@@ -301,12 +304,57 @@ async function loadFeatureImportance() {
   }
 }
 
+// ── Feature contributions (SHAP) chart ───────────────────────────────────────
+let contribChart = null;
+
+function drawContributions(contributions) {
+  const section = document.getElementById('contrib-section');
+  const canvas  = document.getElementById('contrib-chart');
+  if (!canvas || !contributions || Object.keys(contributions).length === 0) return;
+
+  const entries = Object.entries(contributions)
+    .filter(([, v]) => Math.abs(v) > 0.5)
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+    .slice(0, 9);
+
+  if (entries.length === 0) return;
+
+  const labels = entries.map(([k]) => FEATURE_LABELS[k] ?? k);
+  const values = entries.map(([, v]) => v);
+  const colors = values.map(v => v > 0 ? 'rgba(249,115,22,0.78)' : 'rgba(52,211,153,0.78)');
+
+  if (contribChart) contribChart.destroy();
+  contribChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 4 }] },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.x > 0 ? '+' : ''}${c.parsed.x.toFixed(1)} min` } },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#64748b', callback: v => `${v > 0 ? '+' : ''}${Number(v).toFixed(0)}` },
+          title: { display: true, text: 'Contribution (minutes)', color: '#64748b', font: { size: 10 } },
+        },
+        y: { grid: { display: false }, ticks: { color: '#cbd5e1', font: { size: 11 } } },
+      },
+    },
+  });
+  section.classList.remove('hidden');
+}
+
 // ── Single prediction form ────────────────────────────────────────────────────
 form?.addEventListener('submit', async e => {
   e.preventDefault();
   resultEmpty.classList.add('hidden');
   resultContent.classList.add('hidden');
   errorMsg.classList.add('hidden');
+  document.getElementById('contrib-section')?.classList.add('hidden');
   loadingState.classList.remove('hidden');
   submitBtn.disabled = true;
   btnText.textContent = 'Predicting…';
@@ -358,6 +406,7 @@ function displayResult(result, payload) {
     `Weather ${payload.weather_severity.toFixed(1)} / Congestion ${payload.airport_congestion.toFixed(1)}`;
   document.getElementById('result-model').textContent = result.model_name;
   resultContent.classList.remove('hidden');
+  if (result.feature_contributions) drawContributions(result.feature_contributions);
 }
 
 // ── Batch prediction ──────────────────────────────────────────────────────────

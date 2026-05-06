@@ -14,7 +14,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-dir",      default="data/raw",       help="Directory for raw CSV downloads.")
     parser.add_argument("--models-dir",    default="models",         help="Directory to save model files.")
     parser.add_argument("--artifacts-dir", default="artifacts",      help="Directory to save metrics/reports.")
-    parser.add_argument("--max-rows",      type=int, default=150000, help="Row limit for preprocessing.")
+    parser.add_argument("--max-rows",      type=int, default=0,      help="Row limit for preprocessing (0 = all rows).")
     parser.add_argument(
         "--processed-data",
         default=None,

@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Logs · Flight Delay Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0a0f1e; --surface: #111827; --surface2: #1a2235;
+      --border: rgba(255,255,255,0.07); --text: #e2e8f0; --muted: #64748b;
+      --accent: #3b82f6;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 13px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+      padding: 18px 32px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      border-bottom: 1px solid rgba(59,130,246,0.2);
+      box-shadow: 0 4px 40px rgba(0,0,0,0.5);
+    }
+    .hi { font-size: 1.6rem; }
+    .ht h1 { font-size: 1.05rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+    .ht p  { font-size: 0.68rem; color: rgba(255,255,255,0.4); margin-top: 2px; }
+    .hr  { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .pill {
+      font-size: 0.7rem; font-weight: 700; padding: 4px 12px;
+      border-radius: 999px; border: 1px solid;
+    }
+    .pill.loading { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); color: #fbbf24; }
+    .pill.done    { background: rgba(16,185,129,0.15); border-color: rgba(16,185,129,0.4); color: #34d399; }
+    .pill.error   { background: rgba(239,68,68,0.15);  border-color: rgba(239,68,68,0.4);  color: #f87171; }
+    .back { font-size: 0.72rem; color: rgba(255,255,255,0.55); text-decoration: none;
+      padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14);
+      transition: background 150ms; }
+    .back:hover { background: rgba(255,255,255,0.07); }
+
+    .shell { max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+
+    /* ── Metric cards ── */
+    .mc-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 24px; }
+    .mc {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 10px 10px; text-align: center;
+      position: relative; overflow: hidden;
+    }
+    .mc::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--c, #3b82f6); }
+    .mc-lbl { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+    .mc-val { font-size: 1.3rem; font-weight: 800; color: var(--c, #3b82f6); margin: 4px 0 2px; letter-spacing: -0.03em; }
+    .mc-unit{ font-size: 0.6rem; color: var(--muted); }
+
+    /* ── Section label ── */
+    .sec { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--accent); margin: 22px 0 10px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px 22px; margin-bottom: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+    .card-title { font-size: 0.82rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .card-desc  { font-size: 0.68rem; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+    .chart-h300 { position: relative; height: 300px; }
+    .chart-h240 { position: relative; height: 240px; }
+    .chart-h200 { position: relative; height: 200px; }
+
+    /* ── Two-col grid ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+    /* ── Legend row ── */
+    .leg-row { display: flex; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+    .leg { display: flex; align-items: center; gap: 5px; font-size: 0.68rem; color: var(--muted); }
+    .leg-dot { width: 10px; height: 3px; border-radius: 99px; }
+
+    /* ── Confusion matrix ── */
+    .cm-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 10px 0; }
+    .cm-grid { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; }
+    .cm-head { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); text-align: center; padding: 4px 8px; }
+    .cm-side { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--muted); writing-mode: vertical-rl; text-orientation: mixed;
+      transform: rotate(180deg); text-align: center; padding: 0 4px; }
+    .cm-cell {
+      border-radius: 10px; padding: 20px 12px; text-align: center;
+      display: flex; flex-direction: column; gap: 4px; min-width: 120px;
+    }
+    .cm-cell .cm-num  { font-size: 1.6rem; font-weight: 800; }
+    .cm-cell .cm-pct  { font-size: 0.65rem; color: rgba(255,255,255,0.5); }
+    .cm-cell .cm-name { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+    .cm-tp { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.25); color: #34d399; }
+    .cm-fp { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.25); color: #f87171; }
+    .cm-fn { background: rgba(251,191,36,0.12);  border: 1px solid rgba(251,191,36,0.25);  color: #fbbf24; }
+    .cm-tn { background: rgba(96,165,250,0.10);  border: 1px solid rgba(96,165,250,0.20);  color: #60a5fa; }
+    .cm-legend { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .cm-leg { font-size: 0.65rem; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+    .cm-leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── Iter table ── */
+    .iter-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .iter-table th { padding: 7px 14px; text-align: left; font-size: 0.6rem; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--muted); background: var(--surface2);
+      border-bottom: 1px solid var(--border); }
+    .iter-table td { padding: 6px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .iter-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .iter-table tr.best td { background: rgba(16,185,129,0.05) !important; }
+    .td-mono { font-family: ui-monospace, monospace; }
+    .td-train { color: #60a5fa; font-weight: 600; font-family: ui-monospace, monospace; }
+    .td-val   { color: #34d399; font-weight: 600; font-family: ui-monospace, monospace; }
+    .td-gap.pos { color: #f87171; font-family: ui-monospace, monospace; }
+    .td-gap.neg { color: #34d399; font-family: ui-monospace, monospace; }
+    .best-badge { font-size: 0.55rem; font-weight: 700; padding: 1px 6px;
+      background: rgba(16,185,129,0.2); color: #34d399;
+      border-radius: 999px; border: 1px solid rgba(16,185,129,0.3); margin-left: 6px; }
+
+    /* ── Empty / spinner ── */
+    .empty { display: flex; flex-direction: column; align-items: center;
+      padding: 50px 20px; color: var(--muted); text-align: center; gap: 12px; }
+    .empty-icon { font-size: 2rem; }
+    .empty p { font-size: 0.8rem; line-height: 1.6; }
+    .empty code { font-family: ui-monospace, monospace; font-size: 0.72rem;
+      background: var(--surface2); padding: 8px 16px; border-radius: 8px;
+      color: #60a5fa; display: block; margin-top: 6px; }
+    .spinner { width: 30px; height: 30px; border: 3px solid rgba(59,130,246,0.15);
+      border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 860px) {
+      .two-col, .three-col { grid-template-columns: 1fr; }
+      .mc-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="hi">📈</div>
+  <div class="ht">
+    <h1>CatBoost Training Logs</h1>
+    <p>Flight Delay Predictor · GWU Big Data &amp; Cloud Computing</p>
+  </div>
+  <div class="hr">
+    <span class="pill loading" id="status-pill">Loading…</span>
+    <a class="back" href="/">← Website</a>
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ── Metric cards ── -->
+  <div class="mc-grid">
+    <div class="mc" style="--c:#60a5fa"><span class="mc-lbl">MAE</span><span class="mc-val" id="m-mae">--</span><span class="mc-unit">min</span></div>
+    <div class="mc" style="--c:#a78bfa"><span class="mc-lbl">RMSE</span><span class="mc-val" id="m-rmse">--</span><span class="mc-unit">min</span></div>
+    <div class="mc" style="--c:#34d399"><span class="mc-lbl">Median AE</span><span class="mc-val" id="m-medae">--</span><span class="mc-unit">min</span></div>
+    <div class="mc" style="--c:#fb923c"><span class="mc-lbl">R²</span><span class="mc-val" id="m-r2">--</span><span class="mc-unit">score</span></div>
+    <div class="mc" style="--c:#f472b6"><span class="mc-lbl">MAPE</span><span class="mc-val" id="m-mape">--</span><span class="mc-unit">%</span></div>
+    <div class="mc" style="--c:#fbbf24"><span class="mc-lbl">F1 @15m</span><span class="mc-val" id="m-f1">--</span><span class="mc-unit">score</span></div>
+    <div class="mc" style="--c:#34d399"><span class="mc-lbl">Precision</span><span class="mc-val" id="m-prec">--</span><span class="mc-unit">@15min</span></div>
+    <div class="mc" style="--c:#60a5fa"><span class="mc-lbl">Recall</span><span class="mc-val" id="m-rec">--</span><span class="mc-unit">@15min</span></div>
+    <div class="mc" style="--c:#94a3b8"><span class="mc-lbl">Best Iter</span><span class="mc-val" id="m-iter">--</span><span class="mc-unit" id="m-iter-max">/ --</span></div>
+    <div class="mc" style="--c:#94a3b8"><span class="mc-lbl">Train Time</span><span class="mc-val" id="m-time">--</span><span class="mc-unit">sec</span></div>
+  </div>
+
+  <!-- ── Loss curves ── -->
+  <p class="sec">Loss Curves</p>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">RMSE per Iteration</div>
+      <div class="card-desc">Training vs validation loss — gap shows overfitting</div>
+      <div class="leg-row">
+        <div class="leg"><div class="leg-dot" style="background:#60a5fa"></div>Train RMSE</div>
+        <div class="leg"><div class="leg-dot" style="background:#34d399"></div>Validation RMSE</div>
+      </div>
+      <div class="chart-h300"><canvas id="c-rmse"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Overfitting Gap</div>
+      <div class="card-desc">Val RMSE − Train RMSE per iteration — rising gap = overfitting begins</div>
+      <div class="chart-h300"><canvas id="c-gap"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Training speed ── -->
+  <div class="card">
+    <div class="card-title">Training Speed</div>
+    <div class="card-desc">Cumulative seconds elapsed — shows how fast each 100-iteration block trained</div>
+    <div class="chart-h200"><canvas id="c-speed"></canvas></div>
+  </div>
+
+  <!-- ── Error analysis ── -->
+  <p class="sec">Error Analysis</p>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Prediction Error Distribution</div>
+      <div class="card-desc">Absolute error |predicted − actual| bucketed into delay ranges</div>
+      <div class="chart-h240"><canvas id="c-hist"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Predicted vs Actual (1 000-sample scatter)</div>
+      <div class="card-desc">Ideal predictions lie on the diagonal — spread shows model uncertainty</div>
+      <div class="chart-h240"><canvas id="c-scatter"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Confusion matrix + PR thresholds ── -->
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Confusion Matrix  <span style="font-weight:400;color:var(--muted)">@15-min threshold</span></div>
+      <div class="card-desc">Binary classification: will the flight be delayed by ≥15 min?</div>
+      <div class="cm-wrap" id="cm-wrap">
+        <div class="spinner"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Precision / Recall / F1 by Threshold</div>
+      <div class="card-desc">How classification performance changes at different delay thresholds</div>
+      <div class="chart-h240"><canvas id="c-pr"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Breakdown ── -->
+  <p class="sec">Breakdown Analysis</p>
+  <div class="card">
+    <div class="card-title">Per-Airline MAE</div>
+    <div class="card-desc">Which carriers the model predicts best (lower = better). Only airlines with ≥30 validation samples shown.</div>
+    <div class="chart-h240"><canvas id="c-airline"></canvas></div>
+  </div>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Per-Month MAE</div>
+      <div class="card-desc">Seasonal accuracy — is winter or summer harder to predict?</div>
+      <div class="chart-h240"><canvas id="c-month"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Per-Hour MAE</div>
+      <div class="card-desc">Time-of-day accuracy — afternoon/evening flights cascade delays</div>
+      <div class="chart-h240"><canvas id="c-hour"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Iteration table ── -->
+  <p class="sec">Iteration Log</p>
+  <div class="card" style="padding:0">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+      <span style="font-size:0.82rem;font-weight:700;color:#fff">Detailed Iteration Table</span>
+      <span style="font-size:0.68rem;color:var(--muted);margin-left:auto" id="table-note">Loading…</span>
+    </div>
+    <div id="iter-table-wrap"><div class="empty"><div class="spinner"></div><p>Loading…</p></div></div>
+  </div>
+
+</div>
+
+<script>
+const API = window.location.origin;
+const CHART_DEFAULTS = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: '#1a2235', titleColor: '#e2e8f0', bodyColor: '#94a3b8',
+    borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1,
+  }},
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
+    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
+  },
+};
+
+function mkChart(id, config) {
+  return new Chart(document.getElementById(id).getContext('2d'), config);
+}
+
+function setMetric(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val ?? '--';
+}
+
+// ── Main loader ──────────────────────────────────────────────────────────────
+async function load() {
+  const pill = document.getElementById('status-pill');
+  try {
+    const [logsRes, metricsRes, analysisRes] = await Promise.all([
+      fetch(`${API}/training-logs`),
+      fetch(`${API}/metrics`),
+      fetch(`${API}/training-analysis`),
+    ]);
+
+    if (!logsRes.ok) throw new Error(`Training logs not found (${logsRes.status}). Retrain first.`);
+    const logs     = await logsRes.json();
+    const metrics  = metricsRes.ok  ? await metricsRes.json()  : null;
+    const analysis = analysisRes.ok ? await analysisRes.json() : null;
+
+    pill.textContent = 'Loaded'; pill.className = 'pill done';
+
+    // Metrics
+    if (metrics) {
+      setMetric('m-mae',   metrics.mae?.toFixed(2));
+      setMetric('m-rmse',  metrics.rmse?.toFixed(2));
+      setMetric('m-medae', metrics.median_absolute_error?.toFixed(2));
+      setMetric('m-r2',    metrics.r2?.toFixed(3));
+      setMetric('m-mape',  metrics.mape_percent?.toFixed(1));
+      setMetric('m-f1',    metrics.f1_at_threshold?.toFixed(3));
+      setMetric('m-prec',  metrics.precision_at_threshold?.toFixed(3));
+      setMetric('m-rec',   metrics.recall_at_threshold?.toFixed(3));
+      setMetric('m-iter',     Math.round(metrics.best_iteration ?? 0));
+      setMetric('m-iter-max', '/ ' + Math.round(metrics.max_iterations ?? 0));
+    }
+    if (logs.total_seconds) setMetric('m-time', logs.total_seconds);
+
+    drawRmse(logs.train, logs.validation, metrics?.best_iteration);
+    drawGap(logs.train, logs.validation);
+    drawSpeed(logs);
+
+    if (analysis) {
+      drawHist(analysis.error_histogram);
+      drawScatter(analysis.scatter_sample);
+      drawCM(analysis.confusion_matrix);
+      drawPR(analysis.precision_recall_by_threshold);
+      drawAirline(analysis.per_airline);
+      drawMonth(analysis.per_month);
+      drawHour(analysis.per_hour);
+    }
+
+    drawTable(logs.train, logs.validation, metrics?.best_iteration);
+
+  } catch (err) {
+    pill.textContent = 'Error'; pill.className = 'pill error';
+    document.getElementById('iter-table-wrap').innerHTML = `
+      <div class="empty"><div class="empty-icon">⚠️</div><p>${err.message}</p>
+      <code>python -m flight_delay_platform.pipelines.train_catboost --use-dask --max-rows 150000</code></div>`;
+  }
+}
+
+// ── Charts ──────────────────────────────────────────────────────────────────
+function drawRmse(train, val, bestIter) {
+  mkChart('c-rmse', { type: 'line', data: {
+    labels: train.map(r => r.iter),
+    datasets: [
+      { label:'Train RMSE',      data: train.map(r=>r.rmse), borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.06)', borderWidth:2, pointRadius:0, tension:0.3, fill:true },
+      { label:'Validation RMSE', data: val.map(r=>r.rmse),   borderColor:'#34d399', backgroundColor:'rgba(52,211,153,0.06)', borderWidth:2, pointRadius:0, tension:0.3, fill:true },
+    ]},
+    options: { ...CHART_DEFAULTS,
+      plugins: { ...CHART_DEFAULTS.plugins,
+        tooltip: { ...CHART_DEFAULTS.plugins.tooltip, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(4)}` }},
+        annotation: bestIter ? { annotations: { best: {
+          type:'line', xMin: bestIter, xMax: bestIter,
+          borderColor:'rgba(251,191,36,0.5)', borderWidth:1.5, borderDash:[4,4],
+          label:{ content:'best', enabled:true, color:'#fbbf24', font:{size:10}, position:'start' }
+        }}} : undefined,
+      },
+      scales: { ...CHART_DEFAULTS.scales,
+        x: { ...CHART_DEFAULTS.scales.x, title:{ display:true, text:'Iteration', color:'#64748b', font:{size:10} }},
+        y: { ...CHART_DEFAULTS.scales.y, title:{ display:true, text:'RMSE (min)', color:'#64748b', font:{size:10} }},
+      }
+    }
+  });
+}
+
+function drawGap(train, val) {
+  const trainMap = Object.fromEntries(train.map(r=>[r.iter, r.rmse]));
+  const gaps = val.map(r => ({ iter: r.iter, gap: r.rmse - (trainMap[r.iter] ?? r.rmse) }));
+  mkChart('c-gap', { type:'line', data:{
+    labels: gaps.map(r=>r.iter),
+    datasets:[{ label:'Gap', data: gaps.map(r=>r.gap), borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.08)', borderWidth:2, pointRadius:0, tension:0.3, fill:true }]
+  }, options:{ ...CHART_DEFAULTS,
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x, title:{display:true, text:'Iteration', color:'#64748b', font:{size:10}}},
+      y:{ ...CHART_DEFAULTS.scales.y, title:{display:true, text:'Val − Train RMSE', color:'#64748b', font:{size:10}}},
+    }
+  }});
+}
+
+function drawSpeed(logs) {
+  if (!logs.train || logs.train.length === 0) return;
+  // Use catboost_training.json data via training-logs if available
+  const iters = logs.train.map(r => r.iter);
+  // Approximate speed: show cumulative time if available, else skip
+  if (!logs.total_seconds) return;
+  const totalSec = logs.total_seconds;
+  const times = iters.map((it, i) => ({ iter: it, sec: Math.round(totalSec * i / iters.length) }));
+  mkChart('c-speed', { type:'line', data:{
+    labels: times.map(r=>r.iter),
+    datasets:[{ label:'Elapsed (s)', data: times.map(r=>r.sec), borderColor:'#a78bfa', backgroundColor:'rgba(167,139,250,0.08)', borderWidth:2, pointRadius:0, tension:0.3, fill:true }]
+  }, options:{ ...CHART_DEFAULTS,
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x, title:{display:true, text:'Iteration', color:'#64748b', font:{size:10}}},
+      y:{ ...CHART_DEFAULTS.scales.y, title:{display:true, text:'Elapsed (seconds)', color:'#64748b', font:{size:10}}},
+    }
+  }});
+}
+
+function drawHist(hist) {
+  if (!hist) return;
+  mkChart('c-hist', { type:'bar', data:{
+    labels: hist.map(r=>r.bin_label + 'min'),
+    datasets:[{ label:'Count', data: hist.map(r=>r.count),
+      backgroundColor: hist.map((_, i) => `hsla(${210 + i*15},70%,60%,0.7)`),
+      borderRadius:5 }]
+  }, options:{ ...CHART_DEFAULTS,
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x, title:{display:true, text:'Absolute Error', color:'#64748b', font:{size:10}}},
+      y:{ ...CHART_DEFAULTS.scales.y, title:{display:true, text:'Count', color:'#64748b', font:{size:10}}},
+    }
+  }});
+}
+
+function drawScatter(sample) {
+  if (!sample) return;
+  mkChart('c-scatter', { type:'scatter', data:{
+    datasets:[{
+      label:'Prediction', data: sample.map(p=>({ x: p.actual, y: p.predicted })),
+      backgroundColor:'rgba(96,165,250,0.25)', pointRadius:2.5,
+    },{
+      label:'Perfect', data:[{x:0,y:0},{x:200,y:200}],
+      type:'line', borderColor:'rgba(251,191,36,0.5)', borderWidth:1.5,
+      borderDash:[4,4], pointRadius:0,
+    }]
+  }, options:{ ...CHART_DEFAULTS,
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x, title:{display:true, text:'Actual Delay (min)', color:'#64748b', font:{size:10}}, min:0, max:180 },
+      y:{ ...CHART_DEFAULTS.scales.y, title:{display:true, text:'Predicted Delay (min)', color:'#64748b', font:{size:10}}, min:0, max:180 },
+    }
+  }});
+}
+
+function drawCM(cm) {
+  if (!cm) return;
+  const total = cm.tp + cm.fp + cm.tn + cm.fn;
+  const pct = n => ((n/total)*100).toFixed(1) + '%';
+  document.getElementById('cm-wrap').innerHTML = `
+    <div class="cm-grid">
+      <div></div>
+      <div class="cm-head">Predicted: Delayed</div>
+      <div class="cm-head">Predicted: On Time</div>
+      <div class="cm-side">Actual: Delayed</div>
+      <div class="cm-cell cm-tp"><span class="cm-name">True Positive</span><span class="cm-num">${cm.tp.toLocaleString()}</span><span class="cm-pct">${pct(cm.tp)}</span></div>
+      <div class="cm-cell cm-fn"><span class="cm-name">False Negative</span><span class="cm-num">${cm.fn.toLocaleString()}</span><span class="cm-pct">${pct(cm.fn)}</span></div>
+      <div class="cm-side">Actual: On Time</div>
+      <div class="cm-cell cm-fp"><span class="cm-name">False Positive</span><span class="cm-num">${cm.fp.toLocaleString()}</span><span class="cm-pct">${pct(cm.fp)}</span></div>
+      <div class="cm-cell cm-tn"><span class="cm-name">True Negative</span><span class="cm-num">${cm.tn.toLocaleString()}</span><span class="cm-pct">${pct(cm.tn)}</span></div>
+    </div>
+    <div class="cm-legend">
+      <div class="cm-leg"><div class="cm-leg-dot" style="background:#34d399"></div>TP: Correctly predicted delay</div>
+      <div class="cm-leg"><div class="cm-leg-dot" style="background:#f87171"></div>FP: False alarm</div>
+      <div class="cm-leg"><div class="cm-leg-dot" style="background:#fbbf24"></div>FN: Missed delay</div>
+      <div class="cm-leg"><div class="cm-leg-dot" style="background:#60a5fa"></div>TN: Correctly on time</div>
+    </div>`;
+}
+
+function drawPR(data) {
+  if (!data) return;
+  mkChart('c-pr', { type:'bar', data:{
+    labels: data.map(r => r.threshold + ' min'),
+    datasets:[
+      { label:'Precision', data: data.map(r=>r.precision), backgroundColor:'rgba(96,165,250,0.7)',  borderRadius:4 },
+      { label:'Recall',    data: data.map(r=>r.recall),    backgroundColor:'rgba(52,211,153,0.7)',  borderRadius:4 },
+      { label:'F1',        data: data.map(r=>r.f1),        backgroundColor:'rgba(251,191,36,0.7)', borderRadius:4 },
+    ]
+  }, options:{ ...CHART_DEFAULTS,
+    plugins:{ ...CHART_DEFAULTS.plugins, legend:{ display:true, position:'top', labels:{ color:'#94a3b8', font:{size:10}, boxWidth:10 }}},
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x, title:{display:true, text:'Threshold', color:'#64748b', font:{size:10}}},
+      y:{ ...CHART_DEFAULTS.scales.y, min:0, max:1, title:{display:true, text:'Score', color:'#64748b', font:{size:10}}},
+    }
+  }});
+}
+
+function drawAirline(data) {
+  if (!data) return;
+  mkChart('c-airline', { type:'bar', data:{
+    labels: data.map(r=>r.airline),
+    datasets:[{ label:'MAE (min)', data: data.map(r=>r.mae),
+      backgroundColor: data.map((_,i)=>`hsla(${200+i*18},65%,55%,0.75)`), borderRadius:5 }]
+  }, options:{ ...CHART_DEFAULTS,
+    indexAxis:'y',
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x, title:{display:true, text:'MAE (minutes)', color:'#64748b', font:{size:10}}},
+      y:{ ...CHART_DEFAULTS.scales.y, ticks:{color:'#e2e8f0', font:{weight:'600'}}},
+    }
+  }});
+}
+
+function drawMonth(data) {
+  if (!data) return;
+  const COLORS = ['#60a5fa','#818cf8','#a78bfa','#c084fc','#e879f9','#f472b6','#fb7185','#f87171','#fb923c','#fbbf24','#a3e635','#34d399'];
+  mkChart('c-month', { type:'bar', data:{
+    labels: data.map(r=>r.month_name),
+    datasets:[{ label:'MAE (min)', data: data.map(r=>r.mae),
+      backgroundColor: COLORS, borderRadius:5 }]
+  }, options:{ ...CHART_DEFAULTS,
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x },
+      y:{ ...CHART_DEFAULTS.scales.y, title:{display:true, text:'MAE (min)', color:'#64748b', font:{size:10}}},
+    }
+  }});
+}
+
+function drawHour(data) {
+  if (!data) return;
+  mkChart('c-hour', { type:'bar', data:{
+    labels: data.map(r => r.hour + ':00'),
+    datasets:[{ label:'MAE (min)', data: data.map(r=>r.mae),
+      backgroundColor: data.map(r => r.hour >= 6 && r.hour <= 9 ? 'rgba(251,191,36,0.7)' :
+                                       r.hour >= 15 && r.hour <= 20 ? 'rgba(248,113,113,0.7)' :
+                                       'rgba(96,165,250,0.6)'),
+      borderRadius:4 }]
+  }, options:{ ...CHART_DEFAULTS,
+    scales:{ ...CHART_DEFAULTS.scales,
+      x:{ ...CHART_DEFAULTS.scales.x, ticks:{maxRotation:45}},
+      y:{ ...CHART_DEFAULTS.scales.y, title:{display:true, text:'MAE (min)', color:'#64748b', font:{size:10}}},
+    }
+  }});
+}
+
+function drawTable(train, val, bestIter) {
+  const step = 50;
+  const trainMap = Object.fromEntries(train.map(r=>[r.iter, r.rmse]));
+  const valMap   = Object.fromEntries(val.map(r=>[r.iter, r.rmse]));
+  const minValIter = val.reduce((best,r) => r.rmse < (valMap[best]??Infinity) ? r.iter : best, val[0]?.iter ?? 0);
+
+  const iters = [...new Set([...train.map(r=>r.iter), ...val.map(r=>r.iter)])]
+    .filter(i => i % step === 0 || i === 0).sort((a,b)=>a-b);
+
+  const rows = iters.map(iter => {
+    const tr = trainMap[iter] ?? null;
+    const vl = valMap[iter]   ?? null;
+    const gap = (tr!=null && vl!=null) ? vl - tr : null;
+    const isBest = Math.abs(iter - minValIter) < step;
+    return `<tr class="${isBest?'best':''}">
+      <td class="td-mono">${iter}${isBest?'<span class="best-badge">best</span>':''}</td>
+      <td class="td-train">${tr!=null?tr.toFixed(4):'--'}</td>
+      <td class="td-val">${vl!=null?vl.toFixed(4):'--'}</td>
+      <td class="td-gap ${gap>0?'pos':'neg'}">${gap!=null?(gap>0?'+':'')+gap.toFixed(4):'--'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('table-note').textContent = `Every ${step}th iteration · best val RMSE at iter ${minValIter}`;
+  document.getElementById('iter-table-wrap').innerHTML = `
+    <table class="iter-table">
+      <thead><tr><th>Iteration</th><th>Train RMSE</th><th>Val RMSE</th><th>Gap (Val−Train)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+load();
+</script>
+</body>
+</html>

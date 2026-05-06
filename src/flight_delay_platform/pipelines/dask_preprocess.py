@@ -168,10 +168,13 @@ def run_dask_pipeline(
         airline_code=merged["carrier"],
         destination=merged["dest"],
         distance=merged["distance"].fillna(0.0),
+        is_weekend=(merged["day_of_week"] >= 6).astype("int32"),
+        is_peak_hour=merged["hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype("int32"),
     )[
         [
             "weather_severity", "airport_congestion", "departure_hour",
-            "day_of_week", "month", "airline_code", "origin", "destination",
+            "day_of_week", "month", "is_weekend", "is_peak_hour",
+            "airline_code", "origin", "destination",
             "route_avg_delay", "carrier_avg_delay", "distance", "delay_minutes",
         ]
     ].dropna()
@@ -182,7 +185,7 @@ def run_dask_pipeline(
         shutil.rmtree(parquet_dir)
     parquet_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\nExecuting Dask task graph → writing Parquet to {parquet_dir}")
+    print(f"\nExecuting Dask task graph -> writing Parquet to {parquet_dir}")
     print("(Progress bar shows partition completion)")
     with ProgressBar():
         prepared.to_parquet(str(parquet_dir), write_index=False)

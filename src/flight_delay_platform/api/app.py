@@ -55,6 +55,11 @@ def index() -> FileResponse:
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
+@app.get("/training-logs-view")
+def training_logs_view() -> FileResponse:
+    return FileResponse(PROJECT_ROOT / "training_logs.html")
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse()
@@ -63,11 +68,12 @@ def health() -> HealthResponse:
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest) -> PredictionResponse:
     model = load_active_model()
-    predicted_delay = model.predict(request.to_features())
+    feats = request.to_features()
     return PredictionResponse(
-        predicted_delay_minutes=predicted_delay,
+        predicted_delay_minutes=model.predict(feats),
         model_name=model.name,
-        inputs=request.to_features(),
+        inputs=feats,
+        feature_contributions=model.explain(feats),
     )
 
 
@@ -111,6 +117,57 @@ def get_metrics() -> dict:
         raise HTTPException(status_code=404, detail="Metrics file not found")
     with open(metrics_path) as f:
         return json.load(f)
+
+
+@app.get("/training-logs")
+def get_training_logs() -> dict:
+    import csv
+    learn_path = PROJECT_ROOT / "catboost_info" / "learn_error.tsv"
+    test_path  = PROJECT_ROOT / "catboost_info" / "test_error.tsv"
+    time_path  = PROJECT_ROOT / "catboost_info" / "time_left.tsv"
+    if not learn_path.exists():
+        raise HTTPException(status_code=404, detail="Training logs not found — retrain the model first")
+
+    def read_tsv(path, step=5):
+        rows = []
+        with open(path, newline="") as f:
+            for i, row in enumerate(csv.DictReader(f, delimiter="\t")):
+                if i % step == 0 or i == 0:
+                    rows.append({"iter": int(row["iter"]), "rmse": round(float(row["RMSE"]), 4)})
+        return rows
+
+    result = {"train": read_tsv(learn_path), "validation": read_tsv(test_path)}
+    if time_path.exists():
+        with open(time_path, newline="") as f:
+            rows = list(csv.DictReader(f, delimiter="\t"))
+            if rows:
+                result["total_seconds"] = round(float(rows[-1].get("Passed", 0)), 1)
+    return result
+
+
+@app.get("/training-analysis")
+def get_training_analysis() -> dict:
+    path = PROJECT_ROOT / "artifacts" / "training_analysis.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Training analysis not found — retrain the model first")
+    with open(path) as f:
+        return json.load(f)
+
+
+@app.get("/optimal-threshold")
+def get_optimal_threshold() -> dict:
+    path = PROJECT_ROOT / "artifacts" / "training_analysis.json"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Training analysis not found — retrain the model first")
+    with open(path) as f:
+        analysis = json.load(f)
+    pr_data = analysis.get("precision_recall_by_threshold", [])
+    best = max(pr_data, key=lambda x: x["f1"], default=None)
+    return {
+        "optimal_threshold_minutes": best["threshold"] if best else 15,
+        "best_f1": round(best["f1"], 3) if best else None,
+        "data": pr_data,
+    }
 
 
 @app.get("/feature-importance")

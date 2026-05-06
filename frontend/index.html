@@ -222,6 +222,14 @@
                 <div class="detail-row"><span class="detail-label">Conditions</span><span class="detail-value" id="result-conditions">--</span></div>
                 <div class="detail-row"><span class="detail-label">Model</span><span class="detail-value" id="result-model">--</span></div>
               </div>
+              <div id="contrib-section" class="hidden" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.07);padding-top:14px">
+                <div style="font-size:0.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px">Feature Contributions</div>
+                <div style="position:relative;height:190px"><canvas id="contrib-chart"></canvas></div>
+                <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
+                  <span style="font-size:0.62rem;color:#94a3b8;display:flex;align-items:center;gap:5px"><span style="width:10px;height:3px;background:rgba(249,115,22,0.8);border-radius:99px;display:inline-block"></span>Adds delay</span>
+                  <span style="font-size:0.62rem;color:#94a3b8;display:flex;align-items:center;gap:5px"><span style="width:10px;height:3px;background:rgba(52,211,153,0.8);border-radius:99px;display:inline-block"></span>Reduces delay</span>
+                </div>
+              </div>
             </div>
             <p class="error-msg hidden" id="error-msg"></p>
           </section>

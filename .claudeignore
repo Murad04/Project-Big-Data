@@ -1,0 +1,26 @@
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Large data files — too big to be useful context
+data/raw/
+data/processed/
+
+# Generated model artifacts — binary files, not readable
+models/
+catboost_info/
+
+# Generated training artifacts — large JSON outputs
+artifacts/training_analysis.json
+
+# IDE and OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# PDF files
+*.pdf

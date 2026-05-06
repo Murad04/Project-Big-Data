@@ -40,34 +40,40 @@ class DelayModel:
     trained_model: Any | None = None
     source: str = "baseline"
 
+    def _build_row(self, features: dict[str, Any]) -> pd.DataFrame:
+        origin      = str(features.get("origin", "UNK"))
+        destination = str(features.get("destination", "UNK"))
+        airline     = str(features.get("airline_code", "UNKNOWN"))
+        dep_time    = str(features.get("departure_time", "12:00"))
+        dep_hour    = _extract_hour(dep_time)
+        dow         = int(features.get("day_of_week", 1))
+
+        route_key   = f"{origin}_{destination}"
+        overall_avg = float(_DELAY_LOOKUPS.get("overall_avg", 15.0))
+        route_avg   = float(_DELAY_LOOKUPS["route_avg"].get(route_key, overall_avg))
+        carrier_avg = float(_DELAY_LOOKUPS["carrier_avg"].get(airline, overall_avg))
+        distance    = float(_DELAY_LOOKUPS.get("route_distance", {}).get(
+                          route_key, _DELAY_LOOKUPS.get("overall_distance", 1000.0)))
+
+        return pd.DataFrame([{
+            "weather_severity":   float(features.get("weather_severity", 0.0)),
+            "airport_congestion": float(features.get("airport_congestion", 0.0)),
+            "departure_hour":     dep_hour,
+            "day_of_week":        dow,
+            "month":              int(features.get("month", 1)),
+            "is_weekend":         int(dow >= 6),
+            "is_peak_hour":       int(dep_hour in (7, 8, 9, 16, 17, 18, 19)),
+            "airline_code":       airline,
+            "origin":             origin,
+            "destination":        destination,
+            "route_avg_delay":    route_avg,
+            "carrier_avg_delay":  carrier_avg,
+            "distance":           distance,
+        }])
+
     def predict(self, features: dict[str, Any]) -> float:
         if self.trained_model is not None:
-            origin      = str(features.get("origin", "UNK"))
-            destination = str(features.get("destination", "UNK"))
-            airline     = str(features.get("airline_code", "UNKNOWN"))
-            dep_time    = str(features.get("departure_time", "12:00"))
-
-            route_key    = f"{origin}_{destination}"
-            overall_avg  = float(_DELAY_LOOKUPS.get("overall_avg", 15.0))
-            route_avg    = float(_DELAY_LOOKUPS["route_avg"].get(route_key, overall_avg))
-            carrier_avg  = float(_DELAY_LOOKUPS["carrier_avg"].get(airline, overall_avg))
-            distance     = float(_DELAY_LOOKUPS.get("route_distance", {}).get(
-                               route_key, _DELAY_LOOKUPS.get("overall_distance", 1000.0)))
-
-            row = {
-                "weather_severity":   float(features.get("weather_severity", 0.0)),
-                "airport_congestion": float(features.get("airport_congestion", 0.0)),
-                "departure_hour":     _extract_hour(dep_time),
-                "day_of_week":        int(features.get("day_of_week", 1)),
-                "month":              int(features.get("month", 1)),
-                "airline_code":       airline,
-                "origin":             origin,
-                "destination":        destination,
-                "route_avg_delay":    route_avg,
-                "carrier_avg_delay":  carrier_avg,
-                "distance":           distance,
-            }
-            df = pd.DataFrame([row])
+            df = self._build_row(features)
             prediction = self.trained_model.predict(df)[0]
             return round(float(max(prediction, 0.0)), 2)
 
@@ -79,6 +85,24 @@ class DelayModel:
         base_delay  = weather * 1.2 + congestion * 1.8
         calendar_adjustment = (day_of_week % 7) + (month / 12.0)
         return round(base_delay + calendar_adjustment, 2)
+
+    def explain(self, features: dict[str, Any]) -> dict[str, float]:
+        """Return SHAP feature contributions (minutes) for a single prediction."""
+        if self.trained_model is None:
+            return {}
+        try:
+            from catboost import Pool
+            df = self._build_row(features)
+            cat_idx = [i for i, col in enumerate(df.columns)
+                       if col in {"airline_code", "origin", "destination"}]
+            pool = Pool(df, cat_features=cat_idx)
+            shap_vals = self.trained_model.get_feature_importance(pool, type="ShapValues")
+            return {
+                col: round(float(shap_vals[0][i]), 2)
+                for i, col in enumerate(df.columns)
+            }
+        except Exception:
+            return {}
 
 
 def _load_trained_model() -> DelayModel | None:

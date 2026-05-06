@@ -29,6 +29,7 @@ class PredictionResponse(BaseModel):
     predicted_delay_minutes: float
     model_name: str
     inputs: dict[str, Any]
+    feature_contributions: dict[str, float] = Field(default_factory=dict)
 
 
 class ModelInfoResponse(BaseModel):

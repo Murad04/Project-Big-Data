@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+.vscode/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -16,6 +17,7 @@ data/processed/
 artifacts/
 models/
 logs/
+catboost_info/
 notebooks/.ipynb_checkpoints/
 
 # Local files
@@ -24,6 +26,8 @@ notebooks/.ipynb_checkpoints/
 *.swp
 *.pdf
 .env
+.md
+
 .env.*
 .DS_Store
 Thumbs.db

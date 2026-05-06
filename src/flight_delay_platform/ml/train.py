@@ -35,6 +35,8 @@ FEATURE_COLUMNS = [
     "departure_hour",
     "day_of_week",
     "month",
+    "is_weekend",
+    "is_peak_hour",
     "airline_code",
     "origin",
     "destination",
@@ -45,42 +47,122 @@ FEATURE_COLUMNS = [
 TARGET_COLUMN = "delay_minutes"
 CATEGORICAL_COLUMNS = ["airline_code", "origin", "destination"]
 DELAY_THRESHOLD = 15.0
+MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+_N_ITERATIONS = 3000
 
 
 def _build_delay_lookups(df: pd.DataFrame) -> dict[str, Any]:
-    """Compute route and carrier average delays for use at inference time."""
     route_avg = (
         df.groupby(["origin", "destination"])["delay_minutes"]
-        .mean()
-        .clip(lower=0.0)
-        .round(2)
+        .mean().clip(lower=0.0).round(2)
     )
     carrier_avg = (
         df.groupby("airline_code")["delay_minutes"]
-        .mean()
-        .clip(lower=0.0)
-        .round(2)
+        .mean().clip(lower=0.0).round(2)
     )
-    overall_avg = round(float(df["delay_minutes"].mean()), 2)
-
-    route_dist = (
-        df.groupby(["origin", "destination"])["distance"]
-        .mean()
-        .round(0)
-    )
-
-    route_dict    = {f"{o}_{d}": float(v) for (o, d), v in route_avg.items()}
-    carrier_dict  = {k: float(v) for k, v in carrier_avg.items()}
-    dist_dict     = {f"{o}_{d}": float(v) for (o, d), v in route_dist.items()}
-    overall_dist  = round(float(df["distance"].mean()), 0)
+    route_dist = df.groupby(["origin", "destination"])["distance"].mean().round(0)
 
     return {
-        "route_avg": route_dict,
-        "carrier_avg": carrier_dict,
-        "overall_avg": overall_avg,
-        "route_distance": dist_dict,
-        "overall_distance": overall_dist,
+        "route_avg":      {f"{o}_{d}": float(v) for (o, d), v in route_avg.items()},
+        "carrier_avg":    {k: float(v) for k, v in carrier_avg.items()},
+        "overall_avg":    round(float(df["delay_minutes"].mean()), 2),
+        "route_distance": {f"{o}_{d}": float(v) for (o, d), v in route_dist.items()},
+        "overall_distance": round(float(df["distance"].mean()), 0),
     }
+
+
+def _compute_training_analysis(
+    df_valid: pd.DataFrame,
+    y_valid: np.ndarray,
+    pred_valid: np.ndarray,
+    artifacts_dir: Path,
+) -> None:
+    errors = np.abs(y_valid - pred_valid)
+    df_v = df_valid.copy()
+    df_v["_pred"]  = pred_valid
+    df_v["_error"] = errors
+    df_v["_actual"] = y_valid
+
+    # ── Error histogram ───────────────────────────────────────────────────────
+    bins = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 300]
+    hist, edges = np.histogram(errors, bins=bins)
+    error_histogram = [
+        {"bin_label": f"{int(edges[i])}-{int(edges[i+1])}", "count": int(hist[i])}
+        for i in range(len(hist))
+    ]
+
+    # ── Scatter sample (predicted vs actual) ─────────────────────────────────
+    n = min(1000, len(y_valid))
+    idx = np.random.default_rng(42).choice(len(y_valid), n, replace=False)
+    scatter_sample = [
+        {"actual": round(float(y_valid[i]), 1), "predicted": round(float(pred_valid[i]), 1)}
+        for i in idx
+    ]
+
+    # ── Confusion matrix at 15-min threshold ─────────────────────────────────
+    y_true_bin = (y_valid >= DELAY_THRESHOLD).astype(int)
+    y_pred_bin = (pred_valid >= DELAY_THRESHOLD).astype(int)
+    confusion_matrix = {
+        "tp": int(np.sum((y_true_bin == 1) & (y_pred_bin == 1))),
+        "fp": int(np.sum((y_true_bin == 0) & (y_pred_bin == 1))),
+        "tn": int(np.sum((y_true_bin == 0) & (y_pred_bin == 0))),
+        "fn": int(np.sum((y_true_bin == 1) & (y_pred_bin == 0))),
+        "threshold": DELAY_THRESHOLD,
+    }
+
+    # ── Precision / Recall / F1 at multiple thresholds ───────────────────────
+    pr_by_threshold = []
+    for t in [5, 10, 15, 30, 60]:
+        yt = (y_valid >= t).astype(int)
+        yp = (pred_valid >= t).astype(int)
+        prec = float(precision_score(yt, yp, zero_division=0))
+        rec  = float(recall_score(yt, yp, zero_division=0))
+        f1   = float(f1_score(yt, yp, zero_division=0))
+        pr_by_threshold.append({"threshold": t, "precision": round(prec, 3),
+                                  "recall": round(rec, 3), "f1": round(f1, 3)})
+
+    # ── Per-airline MAE ───────────────────────────────────────────────────────
+    per_airline = (
+        df_v.groupby("airline_code")
+        .agg(mae=("_error", "mean"), count=("_error", "count"))
+        .round(2).reset_index()
+        .query("count >= 30")
+        .sort_values("mae")
+        .rename(columns={"airline_code": "airline"})
+        .to_dict(orient="records")
+    )
+
+    # ── Per-month MAE ─────────────────────────────────────────────────────────
+    per_month = (
+        df_v.groupby("month")
+        .agg(mae=("_error", "mean"), count=("_error", "count"))
+        .round(2).reset_index()
+    )
+    per_month["month_name"] = per_month["month"].apply(lambda m: MONTH_NAMES[int(m) - 1])
+    per_month = per_month.to_dict(orient="records")
+
+    # ── Per-hour MAE ──────────────────────────────────────────────────────────
+    per_hour = (
+        df_v.groupby("departure_hour")
+        .agg(mae=("_error", "mean"), count=("_error", "count"))
+        .round(2).reset_index()
+        .rename(columns={"departure_hour": "hour"})
+        .to_dict(orient="records")
+    )
+
+    analysis = {
+        "error_histogram":          error_histogram,
+        "scatter_sample":           scatter_sample,
+        "confusion_matrix":         confusion_matrix,
+        "precision_recall_by_threshold": pr_by_threshold,
+        "per_airline":              per_airline,
+        "per_month":                per_month,
+        "per_hour":                 per_hour,
+    }
+
+    path = artifacts_dir / "training_analysis.json"
+    path.write_text(json.dumps(analysis), encoding="utf-8")
+    print(f"Training analysis saved -> {path}")
 
 
 def train_catboost_model(
@@ -92,80 +174,96 @@ def train_catboost_model(
     required_columns = set(FEATURE_COLUMNS + [TARGET_COLUMN])
     missing = required_columns - set(df.columns)
     if missing:
-        missing_str = ", ".join(sorted(missing))
-        raise ValueError(f"Training dataframe is missing required columns: {missing_str}")
+        raise ValueError(f"Missing columns: {', '.join(sorted(missing))}")
 
-    X = df[FEATURE_COLUMNS].copy()
-    y = df[TARGET_COLUMN].astype(float)
+    # Stratified split keeps delayed/on-time proportions equal across train and val
+    stratify_labels = (df[TARGET_COLUMN] >= DELAY_THRESHOLD).astype(int)
+    df_train, df_valid = train_test_split(df, test_size=0.2, random_state=42, stratify=stratify_labels)
+    X_train = df_train[FEATURE_COLUMNS].copy()
+    X_valid = df_valid[FEATURE_COLUMNS].copy()
+    y_train = df_train[TARGET_COLUMN].astype(float)
+    y_valid = df_valid[TARGET_COLUMN].astype(float)
 
-    X_train, X_valid, y_train, y_valid = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42,
+    # Fix target-encoding leakage: recompute route/carrier averages from training
+    # split only so validation rows never see their own delays during training.
+    route_avg_train = (
+        df_train.groupby(["origin", "destination"])[TARGET_COLUMN]
+        .mean().clip(lower=0.0).to_dict()
     )
+    carrier_avg_train = (
+        df_train.groupby("airline_code")[TARGET_COLUMN]
+        .mean().clip(lower=0.0).to_dict()
+    )
+    overall_avg_train = float(df_train[TARGET_COLUMN].mean())
 
-    cat_features_idx = [X.columns.get_loc(col) for col in CATEGORICAL_COLUMNS]
+    for X in (X_train, X_valid):
+        route_keys = list(zip(X["origin"], X["destination"]))
+        X["route_avg_delay"] = [
+            float(route_avg_train.get((o, d), overall_avg_train))
+            for o, d in route_keys
+        ]
+        X["carrier_avg_delay"] = (
+            X["airline_code"].map(carrier_avg_train).fillna(overall_avg_train)
+        )
+
+    cat_features_idx = [list(X_train.columns).index(col) for col in CATEGORICAL_COLUMNS]
 
     model = CatBoostRegressor(
         loss_function="RMSE",
         eval_metric="RMSE",
-        iterations=1000,
-        depth=8,
+        iterations=_N_ITERATIONS,
+        depth=6,                    # was 8; shallower trees reduce overfitting
         learning_rate=0.05,
-        l2_leaf_reg=3.0,
+        l2_leaf_reg=5.0,            # was 3.0; stronger L2 regularisation
+        min_data_in_leaf=20,        # prevents splits on rare routes
+        subsample=0.8,              # row sampling per tree
+        bootstrap_type="Bernoulli", # required for subsample
+        colsample_bylevel=0.8,      # feature sampling per depth level
         random_seed=42,
         verbose=100,
-        early_stopping_rounds=50,
+        early_stopping_rounds=100,  # was 50; more patience for convergence
     )
-    model.fit(
-        X_train,
-        y_train,
-        cat_features=cat_features_idx,
-        eval_set=(X_valid, y_valid),
-    )
+    model.fit(X_train, y_train, cat_features=cat_features_idx, eval_set=(X_valid, y_valid))
 
-    pred_valid = model.predict(X_valid)
-    pred_valid = np.maximum(pred_valid, 0.0)
-
-    y_pred_binary = (pred_valid >= DELAY_THRESHOLD).astype(int)
-    y_true_binary = (y_valid.values >= DELAY_THRESHOLD).astype(int)
+    pred_valid = np.maximum(model.predict(X_valid), 0.0)
+    y_true_bin = (y_valid.values >= DELAY_THRESHOLD).astype(int)
+    y_pred_bin = (pred_valid >= DELAY_THRESHOLD).astype(int)
 
     nonzero = y_valid.values > 0
     mape = (
         float(np.mean(np.abs((y_valid.values[nonzero] - pred_valid[nonzero]) / y_valid.values[nonzero])) * 100)
-        if nonzero.any()
-        else 0.0
+        if nonzero.any() else 0.0
     )
 
     metrics: dict[str, Any] = {
-        "sample_count": float(len(df)),
-        "train_rows": float(len(X_train)),
-        "valid_rows": float(len(X_valid)),
-        "mae": float(mean_absolute_error(y_valid, pred_valid)),
-        "rmse": float(root_mean_squared_error(y_valid, pred_valid)),
-        "median_absolute_error": float(median_absolute_error(y_valid, pred_valid)),
-        "r2": float(r2_score(y_valid, pred_valid)),
-        "mape_percent": mape,
-        "threshold_minutes": DELAY_THRESHOLD,
-        "precision_at_threshold": float(precision_score(y_true_binary, y_pred_binary, zero_division=0)),
-        "recall_at_threshold": float(recall_score(y_true_binary, y_pred_binary, zero_division=0)),
-        "f1_at_threshold": float(f1_score(y_true_binary, y_pred_binary, zero_division=0)),
-        "best_iteration": int(model.get_best_iteration() or model.tree_count_),
+        "sample_count":            float(len(df)),
+        "train_rows":              float(len(X_train)),
+        "valid_rows":              float(len(X_valid)),
+        "mae":                     float(mean_absolute_error(y_valid, pred_valid)),
+        "rmse":                    float(root_mean_squared_error(y_valid, pred_valid)),
+        "median_absolute_error":   float(median_absolute_error(y_valid, pred_valid)),
+        "r2":                      float(r2_score(y_valid, pred_valid)),
+        "mape_percent":            mape,
+        "threshold_minutes":       DELAY_THRESHOLD,
+        "precision_at_threshold":  float(precision_score(y_true_bin, y_pred_bin, zero_division=0)),
+        "recall_at_threshold":     float(recall_score(y_true_bin, y_pred_bin, zero_division=0)),
+        "f1_at_threshold":         float(f1_score(y_true_bin, y_pred_bin, zero_division=0)),
+        "best_iteration":          int(model.get_best_iteration() or model.tree_count_),
+        "max_iterations":          _N_ITERATIONS,
     }
 
     models_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path = models_dir / "catboost_delay_model.cbm"
+    model_path   = models_dir    / "catboost_delay_model.cbm"
     metrics_path = artifacts_dir / "catboost_metrics.json"
     lookups_path = artifacts_dir / "delay_lookups.json"
 
     model.save_model(model_path)
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    lookups_path.write_text(json.dumps(_build_delay_lookups(df), indent=2), encoding="utf-8")
 
-    lookups = _build_delay_lookups(df)
-    lookups_path.write_text(json.dumps(lookups, indent=2), encoding="utf-8")
+    _compute_training_analysis(df_valid, y_valid.values, pred_valid, artifacts_dir)
 
     return TrainingResult(
         model_name=model_name,
