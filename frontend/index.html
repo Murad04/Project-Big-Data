@@ -3,77 +3,277 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Flight delay prediction dashboard" />
-    <title>Flight Delay Prediction Platform</title>
+    <title>Flight Delay Predictor · GWU ADA</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <section class="hero">
-        <p class="eyebrow">Flight Delay Prediction Platform</p>
-        <h1>Predict delays from weather, congestion, and flight context.</h1>
-        <p class="lede">
-          This static frontend talks to the FastAPI backend and sends structured flight data to the
-          prediction endpoint.
-        </p>
-        <div class="meta-row">
-          <span>Backend: same origin</span>
-          <span id="active-model">Model: checking...</span>
+    <header class="site-header">
+      <div class="header-inner">
+        <div class="brand">
+          <svg class="brand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+          </svg>
+          <div>
+            <span class="brand-name">Flight Delay Predictor</span>
+            <span class="brand-sub">GWU · Big Data &amp; Cloud Computing</span>
+          </div>
         </div>
-      </section>
+        <div class="header-badges">
+          <span class="badge" id="model-badge">Model: checking…</span>
+          <span class="badge badge-secondary">CatBoost · nycflights13</span>
+        </div>
+      </div>
+    </header>
 
-      <section class="layout">
-        <form class="panel form-panel" id="prediction-form">
-          <h2>Prediction Input</h2>
-          <div class="grid">
-            <label>
-              Flight Number
-              <input name="flight_number" value="AA101" />
-            </label>
-            <label>
-              Airline Code
-              <input name="airline_code" value="AA" />
-            </label>
-            <label>
-              Origin
-              <input name="origin" value="JFK" />
-            </label>
-            <label>
-              Destination
-              <input name="destination" value="LAX" />
-            </label>
-            <label>
-              Departure Time
-              <input name="departure_time" type="datetime-local" value="2026-04-03T12:00" />
-            </label>
-            <label>
-              Weather Severity
-              <input name="weather_severity" type="number" step="0.1" min="0" max="10" value="2" />
-            </label>
-            <label>
-              Airport Congestion
-              <input name="airport_congestion" type="number" step="0.1" min="0" max="10" value="3" />
-            </label>
-            <label>
-              Day of Week
-              <input name="day_of_week" type="number" min="1" max="7" value="5" />
-            </label>
-            <label>
-              Month
-              <input name="month" type="number" min="1" max="12" value="4" />
-            </label>
-          </div>
-          <button type="submit" id="submit-button">Run Prediction</button>
-        </form>
+    <main class="shell">
+      <div class="app-layout">
 
-        <aside class="panel result-panel">
-          <h2>Result</h2>
-          <p class="status" id="status">Ready to predict.</p>
-          <div id="result-state" class="empty-state">
-            <p>Submit the form to see a predicted delay.</p>
-          </div>
-        </aside>
-      </section>
+        <!-- ── LEFT: Prediction Form ── -->
+        <section class="panel form-panel">
+          <h2 class="panel-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Flight Details
+          </h2>
+
+          <form id="prediction-form" novalidate>
+            <fieldset>
+              <legend>Route</legend>
+              <div class="field-row">
+                <label class="field">
+                  Airline
+                  <select name="airline_code">
+                    <option value="AA">AA – American Airlines</option>
+                    <option value="UA">UA – United Airlines</option>
+                    <option value="DL">DL – Delta Air Lines</option>
+                    <option value="B6">B6 – JetBlue Airways</option>
+                    <option value="WN">WN – Southwest Airlines</option>
+                    <option value="EV">EV – ExpressJet</option>
+                    <option value="MQ">MQ – Envoy Air</option>
+                    <option value="AS">AS – Alaska Airlines</option>
+                    <option value="9E">9E – Endeavor Air</option>
+                    <option value="US">US – US Airways</option>
+                    <option value="VX">VX – Virgin America</option>
+                    <option value="FL">FL – AirTran Airways</option>
+                    <option value="F9">F9 – Frontier Airlines</option>
+                    <option value="HA">HA – Hawaiian Airlines</option>
+                    <option value="OO">OO – SkyWest Airlines</option>
+                    <option value="YV">YV – Mesa Airlines</option>
+                  </select>
+                </label>
+                <label class="field">
+                  Flight #
+                  <input name="flight_number" value="AA101" placeholder="e.g. AA101" />
+                </label>
+              </div>
+              <div class="field-row">
+                <label class="field">
+                  Origin
+                  <select name="origin">
+                    <optgroup label="NYC Airports (best accuracy)">
+                      <option value="EWR" selected>EWR – Newark Liberty</option>
+                      <option value="JFK">JFK – John F. Kennedy</option>
+                      <option value="LGA">LGA – LaGuardia</option>
+                    </optgroup>
+                    <optgroup label="Other Hubs">
+                      <option value="ATL">ATL – Atlanta</option>
+                      <option value="BOS">BOS – Boston Logan</option>
+                      <option value="CLT">CLT – Charlotte Douglas</option>
+                      <option value="DEN">DEN – Denver</option>
+                      <option value="DFW">DFW – Dallas/Fort Worth</option>
+                      <option value="IAD">IAD – Washington Dulles</option>
+                      <option value="IAH">IAH – Houston Bush</option>
+                      <option value="LAX">LAX – Los Angeles</option>
+                      <option value="MCO">MCO – Orlando</option>
+                      <option value="MIA">MIA – Miami</option>
+                      <option value="ORD">ORD – Chicago O'Hare</option>
+                      <option value="SFO">SFO – San Francisco</option>
+                      <option value="SEA">SEA – Seattle-Tacoma</option>
+                    </optgroup>
+                  </select>
+                </label>
+                <label class="field">
+                  Destination
+                  <select name="destination">
+                    <option value="ATL">ATL – Atlanta</option>
+                    <option value="BNA">BNA – Nashville</option>
+                    <option value="BOS">BOS – Boston</option>
+                    <option value="BQN">BQN – Aguadilla PR</option>
+                    <option value="CLT">CLT – Charlotte</option>
+                    <option value="DCA">DCA – Reagan National</option>
+                    <option value="DEN">DEN – Denver</option>
+                    <option value="DFW">DFW – Dallas/Fort Worth</option>
+                    <option value="DTW">DTW – Detroit</option>
+                    <option value="FLL">FLL – Fort Lauderdale</option>
+                    <option value="IAD">IAD – Washington Dulles</option>
+                    <option value="IAH">IAH – Houston Bush</option>
+                    <option value="LAS">LAS – Las Vegas</option>
+                    <option value="LAX" selected>LAX – Los Angeles</option>
+                    <option value="MCO">MCO – Orlando</option>
+                    <option value="MIA">MIA – Miami</option>
+                    <option value="MSP">MSP – Minneapolis</option>
+                    <option value="MSY">MSY – New Orleans</option>
+                    <option value="ORD">ORD – Chicago O'Hare</option>
+                    <option value="PBI">PBI – West Palm Beach</option>
+                    <option value="PHL">PHL – Philadelphia</option>
+                    <option value="PHX">PHX – Phoenix</option>
+                    <option value="RDU">RDU – Raleigh-Durham</option>
+                    <option value="RSW">RSW – Fort Myers</option>
+                    <option value="SFO">SFO – San Francisco</option>
+                    <option value="SEA">SEA – Seattle</option>
+                    <option value="SJU">SJU – San Juan PR</option>
+                    <option value="SLC">SLC – Salt Lake City</option>
+                    <option value="TPA">TPA – Tampa</option>
+                  </select>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Schedule</legend>
+              <label class="field">
+                Departure Time
+                <input type="datetime-local" name="departure_time" id="departure_time" value="2026-05-05T12:00" />
+              </label>
+              <input type="hidden" name="day_of_week" id="day_of_week_field" value="2" />
+              <input type="hidden" name="month" id="month_field" value="5" />
+              <p class="field-hint" id="schedule-hint">Tuesday, May 2026 · Month 5, Day of week 2</p>
+            </fieldset>
+
+            <fieldset>
+              <legend>Flight Conditions</legend>
+              <label class="field slider-field">
+                Weather Severity
+                <div class="slider-row">
+                  <span class="slider-cap">☀</span>
+                  <input type="range" name="weather_severity" id="weather_severity" min="0" max="10" step="0.1" value="2" />
+                  <span class="slider-cap">⛈</span>
+                  <span class="slider-val" id="ws-val">2.0</span>
+                </div>
+                <div class="slider-labels"><span>Calm</span><span>Severe</span></div>
+              </label>
+              <label class="field slider-field" style="margin-top:12px">
+                Airport Congestion
+                <div class="slider-row">
+                  <span class="slider-cap">✦</span>
+                  <input type="range" name="airport_congestion" id="airport_congestion" min="0" max="10" step="0.1" value="3" />
+                  <span class="slider-cap">⚡</span>
+                  <span class="slider-val" id="ac-val">3.0</span>
+                </div>
+                <div class="slider-labels"><span>Light</span><span>Heavy</span></div>
+              </label>
+            </fieldset>
+
+            <button type="submit" id="submit-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+              </svg>
+              <span id="btn-text">Predict Delay</span>
+            </button>
+          </form>
+        </section>
+
+        <!-- ── RIGHT: Results + History + Metrics ── -->
+        <div class="right-col">
+
+          <!-- Result Card -->
+          <section class="panel result-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Prediction Result
+            </h2>
+            <div id="result-empty" class="empty-state">
+              <div class="empty-plane">✈</div>
+              <p>Fill in the form and click <strong>Predict Delay</strong> to get a result.</p>
+            </div>
+            <div id="loading-state" class="loading-state hidden">
+              <div class="spinner"></div>
+              <p>Computing prediction…</p>
+            </div>
+            <div id="result-content" class="hidden">
+              <div class="delay-display">
+                <div class="delay-ring" id="delay-ring">
+                  <span class="delay-value" id="delay-minutes">--</span>
+                  <span class="delay-unit">min</span>
+                </div>
+                <span class="severity-badge" id="severity-badge">--</span>
+              </div>
+              <div class="delay-details">
+                <div class="detail-row">
+                  <span class="detail-label">Route</span>
+                  <span class="detail-value" id="result-route">--</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Flight</span>
+                  <span class="detail-value" id="result-flight">--</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Conditions</span>
+                  <span class="detail-value" id="result-conditions">--</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Model</span>
+                  <span class="detail-value" id="result-model">--</span>
+                </div>
+              </div>
+            </div>
+            <p class="error-msg hidden" id="error-msg"></p>
+          </section>
+
+          <!-- History -->
+          <section class="panel history-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Recent Predictions
+              <button class="clear-btn hidden" id="clear-history">Clear</button>
+            </h2>
+            <ul id="history-list" class="history-list">
+              <li class="history-empty">No predictions yet.</li>
+            </ul>
+          </section>
+
+          <!-- Metrics -->
+          <section class="panel metrics-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Model Performance
+            </h2>
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <span class="metric-label">MAE</span>
+                <span class="metric-value" id="m-mae">--</span>
+                <span class="metric-unit">min</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">RMSE</span>
+                <span class="metric-value" id="m-rmse">--</span>
+                <span class="metric-unit">min</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">R²</span>
+                <span class="metric-value" id="m-r2">--</span>
+                <span class="metric-unit">score</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">F1 @15m</span>
+                <span class="metric-value" id="m-f1">--</span>
+                <span class="metric-unit">threshold</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Precision</span>
+                <span class="metric-value" id="m-precision">--</span>
+                <span class="metric-unit">@15min</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Recall</span>
+                <span class="metric-value" id="m-recall">--</span>
+                <span class="metric-unit">@15min</span>
+              </div>
+            </div>
+            <p class="metrics-note" id="metrics-note">Loading metrics…</p>
+          </section>
+        </div>
+
+      </div>
     </main>
 
     <script src="/static/app.js"></script>

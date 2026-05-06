@@ -1,6 +1,7 @@
+import json
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -53,3 +54,12 @@ def predict(request: PredictionRequest) -> PredictionResponse:
 @app.get("/model-info", response_model=ModelInfoResponse)
 def get_model_info() -> ModelInfoResponse:
     return ModelInfoResponse(**model_status())
+
+
+@app.get("/metrics")
+def get_metrics() -> dict:
+    metrics_path = PROJECT_ROOT / "artifacts" / "catboost_metrics.json"
+    if not metrics_path.exists():
+        raise HTTPException(status_code=404, detail="Metrics file not found")
+    with open(metrics_path) as f:
+        return json.load(f)

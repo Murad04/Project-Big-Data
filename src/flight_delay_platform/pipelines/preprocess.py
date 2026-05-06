@@ -20,6 +20,9 @@ FALLBACK_DATASET_URLS: list[tuple[str, str]] = [
     ),
 ]
 
+# Peak hourly throughput at NYC airports (~50 flights/hr = score 10).
+_CONGESTION_NORM = 5.0
+
 
 def clean_flight_record(record: dict[str, Any]) -> dict[str, Any]:
     cleaned = dict(record)
@@ -34,9 +37,12 @@ def build_feature_row(record: dict[str, Any]) -> dict[str, Any]:
     return {
         "weather_severity": float(cleaned.get("weather_severity", 0.0)),
         "airport_congestion": float(cleaned.get("airport_congestion", 0.0)),
+        "departure_hour": int(cleaned.get("departure_hour", 12)),
         "day_of_week": int(cleaned.get("day_of_week", 1)),
         "month": int(cleaned.get("month", 1)),
         "airline_code": cleaned.get("airline_code", "UNKNOWN"),
+        "route_avg_delay": float(cleaned.get("route_avg_delay", 0.0)),
+        "carrier_avg_delay": float(cleaned.get("carrier_avg_delay", 0.0)),
     }
 
 
@@ -94,7 +100,9 @@ def _compute_weather_severity(weather: pd.DataFrame) -> pd.Series:
     precip = weather["precip"].fillna(0.0).clip(lower=0.0, upper=1.0)
     wind = (weather["wind_speed"].fillna(0.0) / 40.0).clip(lower=0.0, upper=1.0)
     visib_penalty = ((10.0 - weather["visib"].fillna(10.0)) / 10.0).clip(lower=0.0, upper=1.0)
-    return 0.5 * precip + 0.3 * wind + 0.2 * visib_penalty
+    # Scale to 0–10 to match the inference API contract
+    raw = 0.5 * precip + 0.3 * wind + 0.2 * visib_penalty
+    return (raw * 10.0).clip(0.0, 10.0)
 
 
 def load_and_prepare_training_data(
@@ -105,8 +113,9 @@ def load_and_prepare_training_data(
     flights = pd.read_csv(flights_path)
     weather = pd.read_csv(weather_path)
 
+    # Random sample so we cover all months/seasons, not just the first N rows.
     if max_rows is not None and max_rows > 0:
-        flights = flights.head(max_rows).copy()
+        flights = flights.sample(min(max_rows, len(flights)), random_state=42).copy()
 
     required_flight_cols = [
         "year",
@@ -139,9 +148,12 @@ def load_and_prepare_training_data(
     weather["hour"] = weather["hour"].astype(int)
     weather["weather_severity"] = _compute_weather_severity(weather)
 
-    flights["airport_congestion"] = flights.groupby(["origin", "year", "month", "day", "hour"])[
-        "dep_delay"
-    ].transform("count")
+    # Normalize flight count to 0–10 scale (50 flights/hr ≈ peak = 10.0)
+    flights["airport_congestion"] = (
+        flights.groupby(["origin", "year", "month", "day", "hour"])["dep_delay"]
+        .transform("count")
+        / _CONGESTION_NORM
+    ).clip(0.0, 10.0)
 
     merged = flights.merge(
         weather[["origin", "year", "month", "day", "hour", "weather_severity"]],
@@ -150,15 +162,30 @@ def load_and_prepare_training_data(
     )
     merged["weather_severity"] = merged["weather_severity"].fillna(0.0)
 
+    # Route-level and carrier-level average delays (target encoding within training set)
+    route_avg = (
+        merged.groupby(["origin", "dest"])["dep_delay"]
+        .transform("mean")
+        .clip(lower=0.0)
+    )
+    carrier_avg = (
+        merged.groupby("carrier")["dep_delay"]
+        .transform("mean")
+        .clip(lower=0.0)
+    )
+
     prepared = pd.DataFrame(
         {
             "weather_severity": merged["weather_severity"].astype(float),
             "airport_congestion": merged["airport_congestion"].astype(float),
+            "departure_hour": merged["hour"].astype(int),
             "day_of_week": merged["day_of_week"].astype(int),
             "month": merged["month"].astype(int),
             "airline_code": merged["carrier"].astype(str),
             "origin": merged["origin"].astype(str),
             "destination": merged["dest"].astype(str),
+            "route_avg_delay": route_avg.astype(float),
+            "carrier_avg_delay": carrier_avg.astype(float),
             "delay_minutes": np.maximum(merged["dep_delay"].astype(float), 0.0),
         }
     )
