@@ -48,6 +48,125 @@ function renderHistory() {
 }
 clearHistBtn?.addEventListener('click', () => { history.length = 0; renderHistory(); });
 
+// ── Airport coordinates (for Open-Meteo live weather) ────────────────────────
+const AIRPORT_COORDS = {
+  EWR: { lat: 40.6895, lon: -74.1745, name: 'Newark Liberty'     },
+  JFK: { lat: 40.6413, lon: -73.7781, name: 'John F. Kennedy'    },
+  LGA: { lat: 40.7772, lon: -73.8726, name: 'LaGuardia'          },
+  ATL: { lat: 33.6407, lon: -84.4277, name: 'Atlanta'            },
+  BNA: { lat: 36.1245, lon: -86.6782, name: 'Nashville'          },
+  BOS: { lat: 42.3656, lon: -71.0096, name: 'Boston Logan'       },
+  BQN: { lat: 18.4949, lon: -67.1294, name: 'Aguadilla PR'       },
+  CLT: { lat: 35.2140, lon: -80.9431, name: 'Charlotte Douglas'  },
+  DCA: { lat: 38.8512, lon: -77.0402, name: 'Reagan National'    },
+  DEN: { lat: 39.8561, lon: -104.674, name: 'Denver'             },
+  DFW: { lat: 32.8998, lon: -97.0403, name: 'Dallas/Fort Worth'  },
+  DTW: { lat: 42.2162, lon: -83.3554, name: 'Detroit'            },
+  FLL: { lat: 26.0726, lon: -80.1527, name: 'Fort Lauderdale'    },
+  IAD: { lat: 38.9531, lon: -77.4565, name: 'Washington Dulles'  },
+  IAH: { lat: 29.9902, lon: -95.3368, name: 'Houston Bush'       },
+  LAS: { lat: 36.0840, lon: -115.154, name: 'Las Vegas'          },
+  LAX: { lat: 33.9425, lon: -118.408, name: 'Los Angeles'        },
+  MCO: { lat: 28.4312, lon: -81.3081, name: 'Orlando'            },
+  MIA: { lat: 25.7959, lon: -80.2870, name: 'Miami'              },
+  MSP: { lat: 44.8848, lon: -93.2223, name: 'Minneapolis'        },
+  MSY: { lat: 29.9934, lon: -90.2580, name: 'New Orleans'        },
+  ORD: { lat: 41.9742, lon: -87.9073, name: "Chicago O'Hare"     },
+  PBI: { lat: 26.6832, lon: -80.0956, name: 'West Palm Beach'    },
+  PHL: { lat: 39.8719, lon: -75.2411, name: 'Philadelphia'       },
+  PHX: { lat: 33.4373, lon: -112.008, name: 'Phoenix'            },
+  RDU: { lat: 35.8776, lon: -78.7875, name: 'Raleigh-Durham'     },
+  RSW: { lat: 26.5362, lon: -81.7552, name: 'Fort Myers'         },
+  SFO: { lat: 37.6213, lon: -122.379, name: 'San Francisco'      },
+  SEA: { lat: 47.4502, lon: -122.309, name: 'Seattle-Tacoma'     },
+  SJU: { lat: 18.4394, lon: -66.0018, name: 'San Juan PR'        },
+  SLC: { lat: 40.7884, lon: -111.978, name: 'Salt Lake City'     },
+  TPA: { lat: 27.9755, lon: -82.5332, name: 'Tampa'              },
+};
+
+// ── Weather severity formula (mirrors Python preprocess.py) ──────────────────
+function computeWeatherSeverity(w) {
+  const precip    = Math.min(Math.max(w.precipitation  / 0.5,  0), 1); // 0.5 in/hr = max
+  const wind      = Math.min(Math.max(w.wind_speed_10m / 40,   0), 1);
+  const gust      = Math.min(Math.max((w.wind_gusts_10m || w.wind_speed_10m * 1.3) / 50, 0), 1);
+  const temp      = w.temperature_2m ?? 55;
+  const temp_pen  = Math.min(Math.max((32 - temp) / 32, 0) + Math.max((temp - 85) / 20, 0), 1);
+  const humid     = Math.min((w.relative_humidity_2m ?? 50) / 100, 1);
+  const press_pen = Math.min(Math.max((1013 - (w.surface_pressure ?? 1013)) / 30, 0), 1);
+  const vis_pen   = 0; // visibility not in Open-Meteo current endpoint
+
+  const raw = 0.24 * precip + 0.16 * wind + 0.14 * vis_pen
+            + 0.16 * gust  + 0.12 * temp_pen
+            + 0.10 * humid * precip + 0.08 * press_pen;
+  return Math.round(Math.min(Math.max(raw * 10, 0), 10) * 10) / 10;
+}
+
+// ── Fetch live weather from Open-Meteo (free, no API key) ────────────────────
+async function fetchLiveWeather(iata) {
+  const coords = AIRPORT_COORDS[iata];
+  const wxStatus  = document.getElementById('wx-status');
+  const wxSpinner = document.getElementById('wx-spinner');
+  const wxCard    = document.getElementById('wx-card');
+  const wxHint    = document.getElementById('wx-auto-hint');
+
+  if (!coords) {
+    wxStatus.textContent = 'No weather data available for this airport.';
+    wxCard.classList.add('hidden');
+    wxHint.textContent = '';
+    return;
+  }
+
+  wxSpinner.classList.remove('hidden');
+  wxStatus.textContent = `Fetching live weather for ${coords.name}…`;
+  wxCard.classList.add('hidden');
+
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast`
+      + `?latitude=${coords.lat}&longitude=${coords.lon}`
+      + `&current=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_gusts_10m`
+      + `&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const w    = data.current;
+
+    // Compute severity and update slider
+    const severity = computeWeatherSeverity(w);
+    const wsSlider = document.getElementById('weather_severity');
+    wsSlider.value = severity;
+    document.getElementById('ws-val').textContent = severity.toFixed(1);
+
+    // Fill weather card
+    document.getElementById('wx-airport-name').textContent = coords.name;
+    document.getElementById('wx-temp').textContent   = (w.temperature_2m   ?? '--').toFixed(1);
+    document.getElementById('wx-wind').textContent   = (w.wind_speed_10m   ?? '--').toFixed(1);
+    document.getElementById('wx-gust').textContent   = (w.wind_gusts_10m   ?? '--').toFixed(1);
+    document.getElementById('wx-precip').textContent = (w.precipitation     ?? '--').toFixed(2);
+    document.getElementById('wx-humid').textContent  = Math.round(w.relative_humidity_2m ?? 0);
+    document.getElementById('wx-press').textContent  = Math.round(w.surface_pressure     ?? 0);
+
+    wxCard.classList.remove('hidden');
+    wxStatus.textContent = `Live weather loaded for ${coords.name}`;
+    wxHint.textContent   = '(auto-filled from live data — adjust if needed)';
+  } catch (err) {
+    wxStatus.textContent = `Could not load weather: ${err.message}`;
+    wxHint.textContent   = '';
+  } finally {
+    wxSpinner.classList.add('hidden');
+  }
+}
+
+// Trigger weather fetch when origin changes
+document.querySelector('[name="origin"]')?.addEventListener('change', e => {
+  fetchLiveWeather(e.target.value);
+});
+// Fetch on page load for the default origin
+window.addEventListener('load', () => {
+  const defaultOrigin = document.querySelector('[name="origin"]')?.value;
+  if (defaultOrigin) fetchLiveWeather(defaultOrigin);
+});
+
 // ── Sliders ───────────────────────────────────────────────────────────────────
 document.getElementById('weather_severity')?.addEventListener('input', e =>
   document.getElementById('ws-val').textContent = Number(e.target.value).toFixed(1));

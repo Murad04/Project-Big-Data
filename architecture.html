@@ -269,6 +269,7 @@
   <div class="header-badges">
     <span class="hbadge hl">CatBoost</span>
     <span class="hbadge hl">Dask</span>
+    <span class="hbadge hl">Open-Meteo</span>
     <span class="hbadge">FastAPI</span>
     <span class="hbadge">Chart.js</span>
     <span class="hbadge">Kafka</span>
@@ -320,7 +321,7 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">🔧</span>
         <div class="fn-title">Feature Engineering</div>
-        <div class="fn-sub">10 features<br>departure_hour<br>route_avg_delay<br>weather · congestion</div>
+        <div class="fn-sub">11 features<br>departure_hour · distance<br>route/carrier avg<br>weather · congestion</div>
         <span class="fn-tag">preprocess.py</span>
       </div>
 
@@ -333,7 +334,7 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">🤖</span>
         <div class="fn-title">CatBoost</div>
-        <div class="fn-sub">1000 iter · depth 8<br>MAE 18.82 min<br>R² 0.138</div>
+        <div class="fn-sub">1000 iter · depth 8<br>11 features<br>MAE 18.94 min<br>R² 0.130</div>
         <span class="fn-tag">train.py</span>
       </div>
 
@@ -355,7 +356,20 @@
         </div>
       </div>
 
-      <div class="fc" style="--from:#f59e0b;--to:#ec4899">
+      <div class="fc" style="--from:#f59e0b;--to:#06b6d4">
+        <div class="fc-dot"></div><div class="fc-dot"></div><div class="fc-dot"></div>
+      </div>
+
+      <!-- Open-Meteo -->
+      <div class="fn" style="--nc:#06b6d4">
+        <div class="fn-pulse"></div>
+        <span class="fn-icon">🌤</span>
+        <div class="fn-title">Open-Meteo</div>
+        <div class="fn-sub">Free weather API<br>No key needed<br>Browser fetch<br>temp · wind · precip<br>humid · pressure</div>
+        <span class="fn-tag">api.open-meteo.com</span>
+      </div>
+
+      <div class="fc" style="--from:#06b6d4;--to:#ec4899">
         <div class="fc-dot"></div><div class="fc-dot"></div><div class="fc-dot"></div>
       </div>
 
@@ -364,7 +378,7 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">🌐</span>
         <div class="fn-title">Web Frontend</div>
-        <div class="fn-sub">Single prediction<br>Batch test table<br>Feature chart<br>Metrics panel</div>
+        <div class="fn-sub">Single prediction<br>Batch test table<br>Feature chart<br>Live weather fetch</div>
         <span class="fn-tag">HTML · JS · Chart.js</span>
       </div>
 
@@ -385,7 +399,7 @@
           </div>
           <div class="sn" style="--nc:#10b981">
             <div class="sn-title">train_catboost.py</div>
-            <div class="sn-desc">80/20 split · early stopping · saves .cbm + metrics.json + lookups.json</div>
+            <div class="sn-desc">80/20 split · early stopping · saves .cbm + metrics.json + lookups.json (incl. route_distance)</div>
           </div>
         </div>
       </div>
@@ -403,6 +417,19 @@
           <div class="sn" style="--nc:#f59e0b">
             <div class="sn-title">delay_lookups.json</div>
             <div class="sn-desc">Route avg and carrier avg delay tables — used at inference time</div>
+          </div>
+        </div>
+      </div>
+      <div class="sub-row">
+        <div class="sub-label">Live</div>
+        <div class="sub-nodes">
+          <div class="sn" style="--nc:#06b6d4">
+            <div class="sn-title">Open-Meteo API  (browser-side)</div>
+            <div class="sn-desc">Free · no API key · CORS-enabled · fetches temp, wind, gusts, precip, humidity, pressure for any airport by coordinates</div>
+          </div>
+          <div class="sn" style="--nc:#06b6d4">
+            <div class="sn-title">computeWeatherSeverity()  app.js</div>
+            <div class="sn-desc">Mirrors Python formula exactly · auto-fills the 0-10 severity slider · user can still override manually</div>
           </div>
         </div>
       </div>
@@ -436,7 +463,11 @@
       <tbody>
         <tr><td>Pandas preprocessing pipeline</td><td>pipelines/preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Dask preprocessing pipeline — parallel, no Java</td><td>pipelines/dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>10-feature engineering (departure_hour, route/carrier avg, scaled weather &amp; congestion)</td><td>pipelines/preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>11-feature engineering — added distance + enhanced weather_severity with wind_gust, temp, humid, pressure</td><td>pipelines/preprocess.py · dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Route distance lookup table — auto-resolved from origin+destination at inference</td><td>artifacts/delay_lookups.json</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Live weather auto-fetch — Open-Meteo API called from browser on airport select</td><td>frontend/app.js</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Airport coordinates table — 30 airports, used to call Open-Meteo</td><td>frontend/app.js · AIRPORT_COORDS</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Weather severity JS formula — mirrors Python formula, auto-fills slider</td><td>frontend/app.js · computeWeatherSeverity()</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>CatBoost Regressor training — 1000 iter, depth 8, early stopping</td><td>ml/train.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Full evaluation metrics — MAE, RMSE, R², F1, Precision, Recall @15min</td><td>artifacts/catboost_metrics.json</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Route &amp; carrier delay lookup tables for inference</td><td>artifacts/delay_lookups.json</td><td><span class="tag tag-done">Done</span></td></tr>
@@ -476,12 +507,12 @@ flowchart TD
     DSK --> PQ["Read Parquet"]
     PAN --> DF
     PQ  --> DF
-    DF["DataFrame\n10 features · 150K rows"] --> SPLIT["80/20 split  seed=42"]
+    DF["DataFrame\n11 features · 150K rows"] --> SPLIT["80/20 split  seed=42"]
     SPLIT --> FIT["CatBoostRegressor\n1000 iter · depth 8\nlr=0.05 · early_stop=50"]
     FIT --> EVAL["Evaluate on validation"]
     EVAL --> S1["catboost_delay_model.cbm"]
-    EVAL --> S2["catboost_metrics.json\nMAE 18.82 · RMSE 36.40\nR2 0.138 · F1 0.481"]
-    EVAL --> S3["delay_lookups.json\nroute_avg · carrier_avg"]
+    EVAL --> S2["catboost_metrics.json\nMAE 18.94 · RMSE 36.57\nR2 0.130 · F1 0.479"]
+    EVAL --> S3["delay_lookups.json\nroute_avg · carrier_avg\nroute_distance · overall_distance"]
     S1 & S2 & S3 --> DONE(["Done"])
       </div>
     </div>
@@ -537,29 +568,57 @@ flowchart LR
         R3["dep_delay"]
         R4["wind · precip · visib"]
     end
-    subgraph FEAT["10 Training Features"]
+    subgraph FEAT["11 Training Features"]
         A["departure_hour  0-23"]
         B["day_of_week  ISO 1-7"]
         C["month  1-12"]
         D["airline_code  categorical"]
         E["origin · destination  categorical"]
-        F["weather_severity  0-10"]
+        F["weather_severity  0-10\nwind+precip+vis+gust\n+temp+humid+pressure"]
         G["airport_congestion  0-10"]
         H["route_avg_delay  >= 0"]
         I["carrier_avg_delay  >= 0"]
+        J["distance  miles"]
     end
-    subgraph INF["At Inference"]
+    subgraph INF["At Inference  model_registry.py"]
         I1["hour from ISO datetime string"]
-        I2["route lookup delay_lookups.json"]
-        I3["carrier lookup delay_lookups.json"]
+        I2["route_avg lookup delay_lookups.json"]
+        I3["carrier_avg lookup delay_lookups.json"]
+        I4["distance lookup delay_lookups.json\nroute_distance key"]
+        I5["weather_severity\nauto-filled by Open-Meteo\nor user slider"]
     end
     R1 --> A & B & C
-    R2 --> D & E
+    R2 --> D & E & J
     R3 --> G & H & I
     R4 --> F
     A -.-> I1
     H -.-> I2
     I -.-> I3
+    J -.-> I4
+    F -.-> I5
+      </div>
+    </div>
+  </div>
+
+  <!-- Open-Meteo Flow -->
+  <div class="diagram-card">
+    <div class="diagram-header">
+      <span class="diagram-num">DIAGRAM 4</span>
+      <div class="diagram-title">Live Weather Auto-Fetch — Open-Meteo</div>
+      <div class="diagram-desc">When the user selects an origin airport the browser fetches current weather from Open-Meteo (free, no API key). The same formula used in training computes weather_severity and auto-fills the slider.</div>
+    </div>
+    <div class="diagram-wrap">
+      <div class="mermaid">
+%%{init:{"theme":"dark","themeVariables":{"fontSize":"11px","primaryColor":"#1e3a5f","primaryTextColor":"#e2e8f0","primaryBorderColor":"#3b82f6","lineColor":"#3b82f6","clusterBkg":"#111827","clusterBorder":"#1e3a5f","fontFamily":"Inter,ui-sans-serif"}}}%%
+flowchart TD
+    SEL["User selects Origin airport\ne.g. EWR"] --> COORD
+    COORD["AIRPORT_COORDS lookup\nEWR lat=40.69 lon=-74.17\n30 airports hardcoded in app.js"]
+    COORD --> FETCH["fetch() from browser\napi.open-meteo.com/v1/forecast\nlatitude · longitude\ncurrent fields: temp wind_speed\nwind_gusts precip humidity pressure\nwind_speed_unit=mph\ntemperature_unit=fahrenheit\nprecipitation_unit=inch"]
+    FETCH --> JSON["JSON response\ntemperature_2m: 58.4 F\nwind_speed_10m: 12.3 mph\nwind_gusts_10m: 18.7 mph\nprecipitation: 0.00 in\nrelative_humidity_2m: 64 pct\nsurface_pressure: 1011.2 hPa"]
+    JSON --> FORMULA["computeWeatherSeverity()\nSame weights as Python training\n0.24xprecip + 0.16xwind\n+0.16xgust + 0.12xtemp_pen\n+0.10xhumidxprecip\n+0.08xpress_pen\nx10 -> scale 0-10"]
+    FORMULA --> SLIDER["Auto-fill slider\nweather_severity = 1.8\nUser can still override"]
+    SLIDER --> CARD["Show weather card\nTemp · Wind · Gusts\nPrecip · Humidity · Pressure"]
+    CARD --> PREDICT["User clicks Predict\nweather_severity=1.8\nsent to POST /predict"]
       </div>
     </div>
   </div>

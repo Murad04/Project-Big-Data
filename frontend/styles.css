@@ -419,6 +419,61 @@ button[type="submit"]:disabled { opacity: 0.68; cursor: wait; transform: none; }
   line-height: 1.5;
 }
 
+/* ── Live weather card ───────────────────────────────────────────────────────── */
+.wx-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(37,99,235,0.05);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(37,99,235,0.12);
+}
+.wx-bar-icon { font-size: 1rem; flex-shrink: 0; }
+.wx-bar-text { flex: 1; }
+
+.wx-card {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: rgba(37,99,235,0.05);
+  border: 1px solid rgba(37,99,235,0.18);
+  border-radius: var(--radius-md);
+}
+.wx-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.wx-card-title { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+.wx-source {
+  font-size: 0.65rem; color: var(--text-muted);
+  background: rgba(37,99,235,0.1);
+  padding: 2px 8px; border-radius: 999px;
+}
+.wx-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.wx-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 7px 4px;
+  background: rgba(255,255,255,0.6);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(148,163,184,0.15);
+  text-align: center;
+}
+.wx-lbl  { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.wx-val  { font-size: 1rem; font-weight: 800; color: var(--accent-dark); line-height: 1.1; }
+.wx-unit { font-size: 0.6rem; color: var(--text-muted); }
+.auto-hint { font-size: 0.68rem; font-weight: 400; color: var(--accent); margin-left: 4px; }
+
 /* ── Full-width panels ───────────────────────────────────────────────────────── */
 .full-panel { margin-top: 24px; }
 .panel-subtitle {
