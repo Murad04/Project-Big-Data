@@ -35,3 +35,37 @@ class ModelInfoResponse(BaseModel):
     model_name: str
     is_trained_model: bool
     source: str
+
+
+class BatchFlightInput(BaseModel):
+    flight_number: str
+    airline_code: str
+    origin: str
+    destination: str
+    departure_time: str
+    weather_severity: float = 0.0
+    airport_congestion: float = 0.0
+    day_of_week: int = Field(ge=1, le=7)
+    month: int = Field(ge=1, le=12)
+
+    def to_features(self) -> dict[str, Any]:
+        return self.model_dump()
+
+
+class BatchPredictionRequest(BaseModel):
+    flights: list[BatchFlightInput]
+
+
+class BatchPredictionItem(BaseModel):
+    flight_number: str
+    airline_code: str
+    origin: str
+    destination: str
+    predicted_delay_minutes: float
+    severity: str
+
+
+class BatchPredictionResponse(BaseModel):
+    predictions: list[BatchPredictionItem]
+    model_name: str
+    count: int

@@ -47,22 +47,25 @@ class DelayModel:
             airline     = str(features.get("airline_code", "UNKNOWN"))
             dep_time    = str(features.get("departure_time", "12:00"))
 
-            route_key   = f"{origin}_{destination}"
-            overall_avg = float(_DELAY_LOOKUPS.get("overall_avg", 15.0))
-            route_avg   = float(_DELAY_LOOKUPS["route_avg"].get(route_key, overall_avg))
-            carrier_avg = float(_DELAY_LOOKUPS["carrier_avg"].get(airline, overall_avg))
+            route_key    = f"{origin}_{destination}"
+            overall_avg  = float(_DELAY_LOOKUPS.get("overall_avg", 15.0))
+            route_avg    = float(_DELAY_LOOKUPS["route_avg"].get(route_key, overall_avg))
+            carrier_avg  = float(_DELAY_LOOKUPS["carrier_avg"].get(airline, overall_avg))
+            distance     = float(_DELAY_LOOKUPS.get("route_distance", {}).get(
+                               route_key, _DELAY_LOOKUPS.get("overall_distance", 1000.0)))
 
             row = {
-                "weather_severity":  float(features.get("weather_severity", 0.0)),
+                "weather_severity":   float(features.get("weather_severity", 0.0)),
                 "airport_congestion": float(features.get("airport_congestion", 0.0)),
-                "departure_hour":    _extract_hour(dep_time),
-                "day_of_week":       int(features.get("day_of_week", 1)),
-                "month":             int(features.get("month", 1)),
-                "airline_code":      airline,
-                "origin":            origin,
-                "destination":       destination,
-                "route_avg_delay":   route_avg,
-                "carrier_avg_delay": carrier_avg,
+                "departure_hour":     _extract_hour(dep_time),
+                "day_of_week":        int(features.get("day_of_week", 1)),
+                "month":              int(features.get("month", 1)),
+                "airline_code":       airline,
+                "origin":             origin,
+                "destination":        destination,
+                "route_avg_delay":    route_avg,
+                "carrier_avg_delay":  carrier_avg,
+                "distance":           distance,
             }
             df = pd.DataFrame([row])
             prediction = self.trained_model.predict(df)[0]

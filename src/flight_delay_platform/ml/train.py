@@ -40,6 +40,7 @@ FEATURE_COLUMNS = [
     "destination",
     "route_avg_delay",
     "carrier_avg_delay",
+    "distance",
 ]
 TARGET_COLUMN = "delay_minutes"
 CATEGORICAL_COLUMNS = ["airline_code", "origin", "destination"]
@@ -62,13 +63,23 @@ def _build_delay_lookups(df: pd.DataFrame) -> dict[str, Any]:
     )
     overall_avg = round(float(df["delay_minutes"].mean()), 2)
 
-    route_dict = {f"{o}_{d}": float(v) for (o, d), v in route_avg.items()}
-    carrier_dict = {k: float(v) for k, v in carrier_avg.items()}
+    route_dist = (
+        df.groupby(["origin", "destination"])["distance"]
+        .mean()
+        .round(0)
+    )
+
+    route_dict    = {f"{o}_{d}": float(v) for (o, d), v in route_avg.items()}
+    carrier_dict  = {k: float(v) for k, v in carrier_avg.items()}
+    dist_dict     = {f"{o}_{d}": float(v) for (o, d), v in route_dist.items()}
+    overall_dist  = round(float(df["distance"].mean()), 0)
 
     return {
         "route_avg": route_dict,
         "carrier_avg": carrier_dict,
         "overall_avg": overall_avg,
+        "route_distance": dist_dict,
+        "overall_distance": overall_dist,
     }
 
 

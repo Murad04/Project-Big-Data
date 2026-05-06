@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Flight Delay Predictor · GWU ADA</title>
     <link rel="stylesheet" href="/static/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
   </head>
   <body>
     <header class="site-header">
@@ -26,21 +27,21 @@
     </header>
 
     <main class="shell">
+
+      <!-- ── Top two-column layout ── -->
       <div class="app-layout">
 
-        <!-- ── LEFT: Prediction Form ── -->
+        <!-- LEFT: Form -->
         <section class="panel form-panel">
           <h2 class="panel-title">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             Flight Details
           </h2>
-
           <form id="prediction-form" novalidate>
             <fieldset>
               <legend>Route</legend>
               <div class="field-row">
-                <label class="field">
-                  Airline
+                <label class="field">Airline
                   <select name="airline_code">
                     <option value="AA">AA – American Airlines</option>
                     <option value="UA">UA – United Airlines</option>
@@ -60,14 +61,12 @@
                     <option value="YV">YV – Mesa Airlines</option>
                   </select>
                 </label>
-                <label class="field">
-                  Flight #
+                <label class="field">Flight #
                   <input name="flight_number" value="AA101" placeholder="e.g. AA101" />
                 </label>
               </div>
               <div class="field-row">
-                <label class="field">
-                  Origin
+                <label class="field">Origin
                   <select name="origin">
                     <optgroup label="NYC Airports (best accuracy)">
                       <option value="EWR" selected>EWR – Newark Liberty</option>
@@ -91,8 +90,7 @@
                     </optgroup>
                   </select>
                 </label>
-                <label class="field">
-                  Destination
+                <label class="field">Destination
                   <select name="destination">
                     <option value="ATL">ATL – Atlanta</option>
                     <option value="BNA">BNA – Nashville</option>
@@ -130,8 +128,7 @@
 
             <fieldset>
               <legend>Schedule</legend>
-              <label class="field">
-                Departure Time
+              <label class="field">Departure Time
                 <input type="datetime-local" name="departure_time" id="departure_time" value="2026-05-05T12:00" />
               </label>
               <input type="hidden" name="day_of_week" id="day_of_week_field" value="2" />
@@ -172,10 +169,8 @@
           </form>
         </section>
 
-        <!-- ── RIGHT: Results + History + Metrics ── -->
+        <!-- RIGHT: Result + History + Metrics -->
         <div class="right-col">
-
-          <!-- Result Card -->
           <section class="panel result-panel">
             <h2 class="panel-title">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -183,7 +178,7 @@
             </h2>
             <div id="result-empty" class="empty-state">
               <div class="empty-plane">✈</div>
-              <p>Fill in the form and click <strong>Predict Delay</strong> to get a result.</p>
+              <p>Fill in the form and click <strong>Predict Delay</strong>.</p>
             </div>
             <div id="loading-state" class="loading-state hidden">
               <div class="spinner"></div>
@@ -198,28 +193,15 @@
                 <span class="severity-badge" id="severity-badge">--</span>
               </div>
               <div class="delay-details">
-                <div class="detail-row">
-                  <span class="detail-label">Route</span>
-                  <span class="detail-value" id="result-route">--</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Flight</span>
-                  <span class="detail-value" id="result-flight">--</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Conditions</span>
-                  <span class="detail-value" id="result-conditions">--</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Model</span>
-                  <span class="detail-value" id="result-model">--</span>
-                </div>
+                <div class="detail-row"><span class="detail-label">Route</span><span class="detail-value" id="result-route">--</span></div>
+                <div class="detail-row"><span class="detail-label">Flight</span><span class="detail-value" id="result-flight">--</span></div>
+                <div class="detail-row"><span class="detail-label">Conditions</span><span class="detail-value" id="result-conditions">--</span></div>
+                <div class="detail-row"><span class="detail-label">Model</span><span class="detail-value" id="result-model">--</span></div>
               </div>
             </div>
             <p class="error-msg hidden" id="error-msg"></p>
           </section>
 
-          <!-- History -->
           <section class="panel history-panel">
             <h2 class="panel-title">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -231,49 +213,67 @@
             </ul>
           </section>
 
-          <!-- Metrics -->
           <section class="panel metrics-panel">
             <h2 class="panel-title">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
               Model Performance
             </h2>
             <div class="metrics-grid">
-              <div class="metric-card">
-                <span class="metric-label">MAE</span>
-                <span class="metric-value" id="m-mae">--</span>
-                <span class="metric-unit">min</span>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">RMSE</span>
-                <span class="metric-value" id="m-rmse">--</span>
-                <span class="metric-unit">min</span>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">R²</span>
-                <span class="metric-value" id="m-r2">--</span>
-                <span class="metric-unit">score</span>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">F1 @15m</span>
-                <span class="metric-value" id="m-f1">--</span>
-                <span class="metric-unit">threshold</span>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">Precision</span>
-                <span class="metric-value" id="m-precision">--</span>
-                <span class="metric-unit">@15min</span>
-              </div>
-              <div class="metric-card">
-                <span class="metric-label">Recall</span>
-                <span class="metric-value" id="m-recall">--</span>
-                <span class="metric-unit">@15min</span>
-              </div>
+              <div class="metric-card"><span class="metric-label">MAE</span><span class="metric-value" id="m-mae">--</span><span class="metric-unit">min</span></div>
+              <div class="metric-card"><span class="metric-label">RMSE</span><span class="metric-value" id="m-rmse">--</span><span class="metric-unit">min</span></div>
+              <div class="metric-card"><span class="metric-label">R²</span><span class="metric-value" id="m-r2">--</span><span class="metric-unit">score</span></div>
+              <div class="metric-card"><span class="metric-label">F1 @15m</span><span class="metric-value" id="m-f1">--</span><span class="metric-unit">threshold</span></div>
+              <div class="metric-card"><span class="metric-label">Precision</span><span class="metric-value" id="m-precision">--</span><span class="metric-unit">@15min</span></div>
+              <div class="metric-card"><span class="metric-label">Recall</span><span class="metric-value" id="m-recall">--</span><span class="metric-unit">@15min</span></div>
             </div>
             <p class="metrics-note" id="metrics-note">Loading metrics…</p>
           </section>
         </div>
-
       </div>
+
+      <!-- ── Feature Importance (full width) ── -->
+      <section class="panel full-panel" id="importance-panel">
+        <h2 class="panel-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+          Feature Importance
+          <span class="panel-subtitle">Which inputs drive delay predictions the most</span>
+        </h2>
+        <div class="chart-wrap">
+          <canvas id="importance-chart"></canvas>
+        </div>
+        <p class="metrics-note" id="importance-note">Loading…</p>
+      </section>
+
+      <!-- ── Batch Prediction (full width) ── -->
+      <section class="panel full-panel">
+        <h2 class="panel-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          Batch Prediction
+          <span class="panel-subtitle">6 pre-loaded test scenarios — all predicted in one API call</span>
+          <button class="run-batch-btn" id="run-batch-btn">
+            <span id="batch-btn-text">Run Batch Test</span>
+          </button>
+        </h2>
+        <div class="table-wrap">
+          <table class="batch-table" id="batch-table">
+            <thead>
+              <tr>
+                <th>Flight</th>
+                <th>Route</th>
+                <th>Airline</th>
+                <th>Departure</th>
+                <th>Weather</th>
+                <th>Congestion</th>
+                <th>Predicted Delay</th>
+                <th>Severity</th>
+              </tr>
+            </thead>
+            <tbody id="batch-tbody"></tbody>
+          </table>
+        </div>
+        <p class="error-msg hidden" id="batch-error"></p>
+      </section>
+
     </main>
 
     <script src="/static/app.js"></script>

@@ -97,11 +97,29 @@ def download_public_datasets(data_dir: Path) -> tuple[Path, Path]:
 
 
 def _compute_weather_severity(weather: pd.DataFrame) -> pd.Series:
-    precip = weather["precip"].fillna(0.0).clip(lower=0.0, upper=1.0)
-    wind = (weather["wind_speed"].fillna(0.0) / 40.0).clip(lower=0.0, upper=1.0)
-    visib_penalty = ((10.0 - weather["visib"].fillna(10.0)) / 10.0).clip(lower=0.0, upper=1.0)
-    # Scale to 0–10 to match the inference API contract
-    raw = 0.5 * precip + 0.3 * wind + 0.2 * visib_penalty
+    precip    = weather["precip"].fillna(0.0).clip(0.0, 1.0)
+    wind      = (weather["wind_speed"].fillna(0.0) / 40.0).clip(0.0, 1.0)
+    vis_pen   = ((10.0 - weather["visib"].fillna(10.0)) / 10.0).clip(0.0, 1.0)
+    # wind_gust: fill missing with wind_speed * 1.3 (typical gust ratio)
+    gust      = (weather["wind_gust"].fillna(weather["wind_speed"].fillna(0.0) * 1.3) / 50.0).clip(0.0, 1.0)
+    # temperature extremes: below 32F (freezing) or above 85F (heat) both cause delays
+    temp      = weather["temp"].fillna(55.0)
+    temp_pen  = ((32.0 - temp) / 32.0).clip(0.0, 1.0) + ((temp - 85.0) / 20.0).clip(0.0, 1.0)
+    temp_pen  = temp_pen.clip(0.0, 1.0)
+    # humidity amplifies precipitation impact
+    humid     = (weather["humid"].fillna(50.0) / 100.0).clip(0.0, 1.0)
+    # low pressure signals approaching storms (normal ~1013 hPa)
+    press_pen = ((1013.0 - weather["pressure"].fillna(1013.0)) / 30.0).clip(0.0, 1.0)
+
+    raw = (
+        0.24 * precip
+        + 0.16 * wind
+        + 0.14 * vis_pen
+        + 0.16 * gust
+        + 0.12 * temp_pen
+        + 0.10 * humid * precip   # humidity matters most when raining
+        + 0.08 * press_pen
+    )
     return (raw * 10.0).clip(0.0, 10.0)
 
 
@@ -126,8 +144,10 @@ def load_and_prepare_training_data(
         "origin",
         "dest",
         "dep_delay",
+        "distance",
     ]
     flights = flights[required_flight_cols].copy()
+    flights["distance"] = pd.to_numeric(flights["distance"], errors="coerce").fillna(0.0)
 
     flights["dep_delay"] = pd.to_numeric(flights["dep_delay"], errors="coerce")
     flights["hour"] = pd.to_numeric(flights["hour"], errors="coerce")
@@ -141,7 +161,8 @@ def load_and_prepare_training_data(
     flights = flights.dropna(subset=["event_time"])
     flights["day_of_week"] = flights["event_time"].dt.dayofweek + 1
 
-    weather_keep_cols = ["origin", "year", "month", "day", "hour", "wind_speed", "precip", "visib"]
+    weather_keep_cols = ["origin", "year", "month", "day", "hour",
+                         "wind_speed", "wind_gust", "precip", "visib", "temp", "humid", "pressure"]
     weather = weather[weather_keep_cols].copy()
     weather["hour"] = pd.to_numeric(weather["hour"], errors="coerce")
     weather = weather.dropna(subset=["hour", "origin"])
@@ -186,6 +207,7 @@ def load_and_prepare_training_data(
             "destination": merged["dest"].astype(str),
             "route_avg_delay": route_avg.astype(float),
             "carrier_avg_delay": carrier_avg.astype(float),
+            "distance": merged["distance"].astype(float),
             "delay_minutes": np.maximum(merged["dep_delay"].astype(float), 0.0),
         }
     )
