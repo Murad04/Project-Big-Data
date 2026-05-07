@@ -47,8 +47,6 @@ All core components are built, tested, and running.
 
 ### Web Frontend (http://localhost:8000)
 - [x] Flight prediction form with airline/airport dropdowns
-- [x] Live weather auto-fetch from Open-Meteo API (no API key, browser-side)
-- [x] Weather severity auto-computed and fills slider using same formula as training
 - [x] Severity ring: On Time / Minor / Moderate / Significant / Major (color-coded)
 - [x] Prediction history (last 8 predictions)
 - [x] Batch prediction table (6 pre-loaded test scenarios)
@@ -76,9 +74,6 @@ All core components are built, tested, and running.
 - [x] `README.md` — complete quickstart, API reference, feature table, metrics
 - [x] `report.md` — detailed project report
 
-### Infrastructure Stubs
-- [x] `services/kafka_consumer.py` — Kafka consumer config stub (not wired)
-- [x] `services/cassandra_store.py` — Cassandra store stub (not wired)
 
 ---
 

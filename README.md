@@ -8,9 +8,7 @@ A full-stack machine learning application that predicts flight departure delays 
 
 ## What It Does
 
-- User selects origin airport → live weather is auto-fetched from **Open-Meteo** (free, no API key)
-- Weather severity is computed automatically using wind, gusts, temperature, humidity, pressure, and precipitation
-- User submits flight details → **CatBoost** predicts delay in minutes with a severity label
+- User submits flight details → **LightGBM** predicts delay in minutes with a severity label
 - **Batch prediction**: test 6 pre-loaded scenarios in one API call
 - **Feature importance chart**: see which inputs drive predictions most
 
@@ -24,8 +22,6 @@ A full-stack machine learning application that predicts flight departure delays 
 | ML model | **CatBoost Regressor** · 11 features · 1000 iterations |
 | API | **FastAPI** · 6 endpoints |
 | Frontend | HTML · CSS · JavaScript · **Chart.js** |
-| Live weather | **Open-Meteo API** (browser-side, no key needed) |
-| Streaming stubs | Kafka consumer · Cassandra store |
 
 ---
 
@@ -36,7 +32,7 @@ src/flight_delay_platform/
   api/          FastAPI app + schemas
   ml/           CatBoost training + evaluation
   pipelines/    preprocess.py · dask_preprocess.py · train_catboost.py
-  services/     model_registry.py · kafka_consumer.py (stub) · cassandra_store.py (stub)
+  services/     model_registry.py
 frontend/       index.html · app.js · styles.css
 models/         catboost_delay_model.cbm
 artifacts/      catboost_metrics.json · delay_lookups.json

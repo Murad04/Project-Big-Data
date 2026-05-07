@@ -8,8 +8,7 @@ Stack: LightGBM · Dask · FastAPI · Chart.js
 ## What This Project Does
 
 Predicts flight departure delay in minutes given route, schedule, and weather conditions.  
-Training data: BTS On-Time Performance 2023 (6.76 M US flight records, all airports).  
-Live weather is auto-fetched from Open-Meteo when the user picks an origin airport (displayed as context; not a model feature in the BTS-trained model).
+Training data: BTS On-Time Performance 2023 (6.76 M US flight records, all airports).
 
 ---
 
@@ -29,12 +28,10 @@ src/flight_delay_platform/
     train_lgb.py   ← CLI entry point for training
   services/
     model_registry.py   ← Loads model, resolves lookup features at inference time
-    kafka_consumer.py   ← STUB only — not wired up
-    cassandra_store.py  ← STUB only — not wired up
 
 frontend/
   index.html    ← Single-page app
-  app.js        ← All frontend logic (weather fetch, charts, prediction, history)
+  app.js        ← All frontend logic (charts, prediction, history)
   styles.css    ← Styling
 
 data/raw/           ← bts_flights.csv (gitignored)
@@ -196,15 +193,11 @@ it alongside the model; they must always come from the same training run.
 At inference time they are set to 0. The model compensates via `route_avg_delay`  
 and `carrier_avg_delay` which embed historical delay patterns.
 
-**6. Kafka and Cassandra are intentional stubs.**  
-`services/kafka_consumer.py` and `services/cassandra_store.py` are scaffolding.  
-Do not wire them into the main prediction path without a running broker/cluster.
-
-**7. All endpoints are defined in one file.**  
+**6. All endpoints are defined in one file.**  
 `api/app.py` is the only place endpoints are registered. Do not create new routers  
 or split endpoints across files without good reason.
 
-**8. The model hot-reloads on file change.**  
+**7. The model hot-reloads on file change.**  
 `model_registry.py` checks `lgb_delay_model.txt` mtime on every request.  
 After retraining, the running server picks up the new model automatically.
 

@@ -15,20 +15,18 @@ Recent research trends favor:
 - Hybrid data architectures that combine streaming ingestion and scalable storage.
 - Feature-rich pipelines that include congestion indices, weather severity, and temporal context.
 
-Based on these trends, this project adopts an integrated architecture with support for Apache Kafka, Apache Spark, Apache Cassandra, and ensemble machine learning methods, with CatBoost selected as the primary model candidate for tabular delay prediction.
+Based on these trends, this project adopts an integrated architecture with ensemble machine learning methods, with LightGBM selected as the primary model for tabular delay prediction.
 
 ### Background Workflow Diagram
 ```mermaid
 flowchart LR
-	A[Raw Flight Events] --> B[Streaming Ingestion: Kafka]
-	C[Weather and Ops Signals] --> B
-	B --> D[Distributed Processing: Spark or Python Pipeline]
-	D --> E[Data Cleaning and Normalization]
-	E --> F[Feature Engineering\nWeather Severity, Congestion, Temporal Features]
-	F --> G[Model Training and Validation\nCatBoost]
-	G --> H[Model Registry and Artifacts]
-	H --> I[FastAPI Inference Service]
-	I --> J[Frontend Dashboard and Decision Support]
+	A[Raw Flight Data: BTS CSV] --> B[Preprocessing Pipeline: Dask + Pandas]
+	C[Operational Signals] --> B
+	B --> D[Feature Engineering\nCongestion, Tail-Delay, Temporal Features]
+	D --> E[Model Training and Validation\nLightGBM]
+	E --> F[Model Registry and Artifacts]
+	F --> G[FastAPI Inference Service]
+	G --> H[Frontend Dashboard and Decision Support]
 ```
 
 The diagram summarizes the background-to-implementation flow used in this project, from multi-source data ingestion to trained-model serving and user-facing prediction output.
@@ -45,22 +43,17 @@ flowchart TB
 		DS3[Operational Context]
 	end
 
-	subgraph Ingestion[Ingestion]
-		KFK[Apache Kafka Topics]
-	end
-
 	subgraph Processing[Processing and Features]
-		PRC[Preprocessing Pipeline]
+		PRC[Preprocessing Pipeline: Dask + Pandas]
 		FE[Feature Engineering]
 	end
 
 	subgraph Storage[Storage]
-		CAS[(Apache Cassandra)]
 		ART[(Artifacts and Models)]
 	end
 
 	subgraph ML[Modeling]
-		TRN[CatBoost Training]
+		TRN[LightGBM Training]
 		EVAL[Evaluation Metrics]
 	end
 
@@ -69,28 +62,25 @@ flowchart TB
 		UI[Static Frontend Dashboard]
 	end
 
-	DS1 --> KFK
-	DS2 --> KFK
-	DS3 --> KFK
-	KFK --> PRC
+	DS1 --> PRC
+	DS2 --> PRC
+	DS3 --> PRC
 	PRC --> FE
 	FE --> TRN
 	TRN --> EVAL
-	FE --> CAS
 	TRN --> ART
 	ART --> API
-	CAS --> API
 	API --> UI
 ```
 
 ### 1. Ingestion Layer
-Apache Kafka is used as the streaming backbone for high-volume event ingestion from flight, weather, and operational systems.
+Raw BTS On-Time Performance CSV data is loaded and processed directly using Dask for parallel, memory-efficient handling of 6.76 million flight records.
 
 ### 2. Processing Layer
-Apache Spark is planned for distributed preprocessing and feature transformations. In the current local scaffold, preprocessing utilities are implemented in Python and can later be migrated or mirrored to Spark jobs.
+Dask and Pandas handle distributed preprocessing and feature transformations, including tail-delay propagation, airport congestion scores, and route/carrier averages.
 
 ### 3. Storage Layer
-Apache Cassandra is selected for scalable, fault-tolerant persistence of raw events, processed records, and prediction outputs.
+Processed features are stored in Parquet format for efficient columnar access. Model artifacts (weights, lookup tables, label encoders, metrics) are persisted as JSON and LightGBM model files.
 
 ### 4. Machine Learning Layer
 The ML layer includes dataset acquisition, data cleanup, feature preparation, training, and validation. CatBoost is selected as the preferred model for the current phase because:
@@ -105,7 +95,7 @@ A FastAPI application exposes:
 - A static frontend dashboard for user input and result display.
 
 ### 6. End-to-End Data Flow
-1. Events are ingested through Kafka.
+1. Raw BTS flight records are loaded and preprocessed via Dask.
 2. Records are cleaned and normalized.
 3. Features are generated and stored.
 4. A model is trained and saved to artifacts.
@@ -162,7 +152,7 @@ The training workflow performs:
 
 ### Current Limitations
 - External dataset URL reliability must be hardened with fallback sources or local mirrors.
-- Spark-native preprocessing and Kafka/Cassandra runtime integration remain planned extensions.
+- Additional evaluation (calibration, drift monitoring) is pending.
 - Additional evaluation (classification objective, calibration, drift monitoring) is pending.
 
 ### Next Steps
