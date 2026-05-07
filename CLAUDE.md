@@ -1,15 +1,15 @@
 # CLAUDE.md — Flight Delay Prediction Platform
 
 GWU · Big Data & Cloud Computing · Final Project  
-Stack: LightGBM · Dask · FastAPI · Open-Meteo · Chart.js
+Stack: LightGBM · Dask · FastAPI · Chart.js
 
 ---
 
 ## What This Project Does
 
 Predicts flight departure delay in minutes given route, schedule, and weather conditions.  
-Training data: nycflights13 (328 K NYC flight records, 2013).  
-Live weather is auto-fetched from Open-Meteo when the user picks an origin airport.
+Training data: BTS On-Time Performance 2023 (6.76 M US flight records, all airports).  
+Live weather is auto-fetched from Open-Meteo when the user picks an origin airport (displayed as context; not a model feature in the BTS-trained model).
 
 ---
 
@@ -23,9 +23,10 @@ src/flight_delay_platform/
   ml/
     train.py        ← LightGBM training, evaluation, analysis — single source of truth
   pipelines/
-    preprocess.py       ← Pandas preprocessing (default path)
-    dask_preprocess.py  ← Dask preprocessing (--use-dask flag)
-    train_catboost.py   ← CLI entry point for training
+    preprocess.py       ← Pandas preprocessing (nycflights13 path)
+    dask_preprocess.py  ← Dask preprocessing (--use-dask flag, nycflights13)
+    bts_preprocess.py   ← BTS On-Time Performance preprocessor (production path)
+    train_lgb.py   ← CLI entry point for training
   services/
     model_registry.py   ← Loads model, resolves lookup features at inference time
     kafka_consumer.py   ← STUB only — not wired up
@@ -36,11 +37,12 @@ frontend/
   app.js        ← All frontend logic (weather fetch, charts, prediction, history)
   styles.css    ← Styling
 
-data/raw/           ← nyc_flights.csv + nyc_weather.csv (gitignored)
-data/processed/     ← Dask Parquet output (gitignored)
+data/raw/           ← bts_flights.csv (gitignored)
+data/processed/     ← bts_features.parquet (gitignored)
 models/             ← lgb_delay_model.txt (gitignored)
-artifacts/          ← catboost_metrics.json, delay_lookups.json, label_encoders.json,
-                       lgb_training_logs.json, training_analysis.json (gitignored)
+artifacts/          ← lgb_metrics.json, delay_lookups.json, label_encoders.json,
+                       lgb_training_logs.json, training_analysis.json,
+                       feature_columns.json (gitignored)
 
 architecture.html   ← Animated architecture diagrams (open in browser)
 training_logs.html  ← Training curves + analysis (served at /training-logs-view)
@@ -55,9 +57,10 @@ training_logs.html  ← Training curves + analysis (served at /training-logs-vie
 $env:PYTHONPATH = "src"
 .\.venv\Scripts\uvicorn.exe flight_delay_platform.api.app:app --app-dir src --port 8000 --reload
 
-# Train model (Dask pipeline + LightGBM, ~5 min on full dataset)
+# Train model on BTS data (~10 min preprocess + ~60 min training)
 $env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m flight_delay_platform.pipelines.train_catboost --use-dask --max-rows 0
+.\.venv\Scripts\python.exe -m flight_delay_platform.pipelines.bts_preprocess --input data/raw/bts_flights.csv --output data/processed/bts_features.parquet
+.\.venv\Scripts\python.exe -m flight_delay_platform.pipelines.train_lgb --processed-data data/processed/bts_features.parquet
 
 # Run tests
 .\.venv\Scripts\pytest.exe tests/ -v
@@ -73,6 +76,7 @@ All defined in `src/flight_delay_platform/api/app.py`.
 |--------|------|---------|
 | GET | `/` | Frontend HTML |
 | GET | `/training-logs-view` | Training logs HTML page |
+| GET | `/architecture-view` | Architecture diagrams HTML page |
 | POST | `/predict` | Single flight delay prediction |
 | POST | `/predict/batch` | Up to 200 flights per call |
 | GET | `/feature-importance` | LightGBM gain importance scores (sorted) |
@@ -84,30 +88,34 @@ All defined in `src/flight_delay_platform/api/app.py`.
 
 ---
 
-## The 14 Model Features
+## The 18 Model Features
 
-Defined in `FEATURE_COLUMNS` inside `src/flight_delay_platform/ml/train.py`.  
-Feature engineering lives in `pipelines/preprocess.py` and `pipelines/dask_preprocess.py`.
+Defined in `FEATURE_COLUMNS` + `BTS_FEATURE_COLUMNS` inside `src/flight_delay_platform/ml/train.py`.  
+The active feature list for a given model run is saved to `artifacts/feature_columns.json`.
 
 | Feature | Type | Source |
 |---------|------|--------|
-| `weather_severity` | float 0–10 | Computed from wind, gust, precip, temp, humid, pressure |
 | `airport_congestion` | float 0–10 | Flight count per origin/hour ÷ 5, clipped |
-| `departure_hour` | int 0–23 | flights.hour |
+| `departure_hour` | int 0–23 | CRSDepTime HHMM → hour |
 | `day_of_week` | int 1–7 | ISO: Mon=1, Sun=7 |
-| `month` | int 1–12 | flights.month |
+| `month` | int 1–12 | FlightDate.month |
 | `quarter` | int 1–4 | Derived from month: Q1=winter, Q2=spring, Q3=summer, Q4=fall |
 | `is_weekend` | int 0/1 | day_of_week >= 6 |
 | `is_peak_hour` | int 0/1 | departure_hour in {7,8,9,16,17,18,19} |
-| `airline_code` | categorical | flights.carrier (AA, UA, DL, …) |
-| `origin` | categorical | flights.origin (EWR, JFK, LGA, …) |
-| `destination` | categorical | flights.dest |
+| `airline_code` | categorical | Reporting_Airline (AA, UA, DL, …) |
+| `origin` | categorical | Origin airport code |
+| `destination` | categorical | Dest airport code |
 | `route_avg_delay` | float ≥ 0 | Mean dep_delay per origin-dest pair |
 | `carrier_avg_delay` | float ≥ 0 | Mean dep_delay per carrier |
-| `distance` | float miles | flights.distance |
+| `distance` | float miles | Distance |
+| `prev_tail_delay` | float ≥ 0 | Previous flight delay for same tail number (key feature) |
+| `late_aircraft_flag` | int 0/1 | prev_tail_delay > 15 min |
+| `weather_delay` | float ≥ 0 | BTS-reported weather delay minutes (0 at inference) |
+| `carrier_delay` | float ≥ 0 | BTS-reported carrier/mechanical delay (0 at inference) |
+| `nas_delay` | float ≥ 0 | BTS-reported ATC/ground-stop delay (0 at inference) |
 
 At inference time, `route_avg_delay`, `carrier_avg_delay`, and `distance` are resolved  
-from `artifacts/delay_lookups.json` using the origin+destination key.
+from `artifacts/delay_lookups.json`. BTS delay-cause features default to 0 (unknown before flight).
 
 Categoricals (`airline_code`, `origin`, `destination`) are label-encoded to integers at  
 training time. The mapping is saved to `artifacts/label_encoders.json` and applied at  
@@ -124,8 +132,9 @@ load_active_model()  (model_registry.py)
     ↓ looks up route_avg, carrier_avg, distance from delay_lookups.json
     ↓ extracts departure_hour from ISO datetime string
     ↓ derives quarter, is_weekend, is_peak_hour
+    ↓ BTS delay-cause features default to 0 (unknown pre-departure)
     ↓ label-encodes airline_code, origin, destination via label_encoders.json
-    ↓ builds 14-feature DataFrame row
+    ↓ filters to active feature_columns.json list → 18-feature DataFrame row
     ↓
 lgb.Booster.predict()
     ↓ clip to >= 0
@@ -138,21 +147,25 @@ PredictionResponse { predicted_delay_minutes, model_name, inputs }
 ## Training Flow
 
 ```
-train_catboost.py --use-dask --max-rows 0
+bts_preprocess.py --input data/raw/bts_flights.csv
+    ↓ tail-delay sort + shift (prev_tail_delay)
+    ↓ airport congestion, route/carrier averages
     ↓
-dask_preprocess.py  →  data/processed/features.parquet
+data/processed/bts_features.parquet
     ↓
-pd.read_parquet()
+train_lgb.py --processed-data bts_features.parquet
     ↓
-train_catboost_model()  (ml/train.py)
+train_model()  (ml/train.py)
+  auto-detects 18 BTS features
   80/20 stratified split → lgb.train(3000 rounds, num_leaves=63, lr=0.05, early_stop=100)
     ↓
 Save: models/lgb_delay_model.txt
-      artifacts/catboost_metrics.json
+      artifacts/lgb_metrics.json
       artifacts/delay_lookups.json
       artifacts/label_encoders.json
       artifacts/lgb_training_logs.json
       artifacts/training_analysis.json
+      artifacts/feature_columns.json
 ```
 
 ---
@@ -160,13 +173,13 @@ Save: models/lgb_delay_model.txt
 ## Architecture Rules
 
 **1. Feature columns are the single source of truth.**  
-`FEATURE_COLUMNS` in `ml/train.py` is the authoritative list. If you add a feature,  
-update it there AND in `model_registry.py`'s `_build_row()` AND in both preprocessors.
+`FEATURE_COLUMNS` + `BTS_FEATURE_COLUMNS` in `ml/train.py` define all possible features.  
+The active set for each run is saved to `artifacts/feature_columns.json`. If you add a feature,  
+update `train.py`, `model_registry.py`'s `_build_row()`, and the relevant preprocessor.
 
-**2. Training and inference must use the same feature scales.**  
-`weather_severity` is 0–10. `airport_congestion` is 0–10 (raw count ÷ 5).  
-The Open-Meteo JS formula in `frontend/app.js` must match `_compute_weather_severity()`  
-in both `preprocess.py` and `dask_preprocess.py`.
+**2. Active feature list must match the loaded model.**  
+`model_registry.py` loads `feature_columns.json` alongside the model. They must always  
+come from the same training run. Hot-reload reloads both together.
 
 **3. Lookup tables connect training to inference.**  
 `delay_lookups.json` is regenerated every retrain. It stores `route_avg`, `carrier_avg`,  
@@ -178,32 +191,29 @@ and `overall_distance` for unknown routes.
 It is regenerated every retrain from training-split data. `model_registry.py` loads  
 it alongside the model; they must always come from the same training run.
 
-**5. Never add a feature at training time without handling it at inference time.**  
-`model_registry.py → DelayModel._build_row()` must always build a row with exactly  
-the same features as `FEATURE_COLUMNS`. LightGBM will silently produce wrong predictions  
-on column count or order mismatch.
+**5. BTS delay-cause features default to 0 at inference.**  
+`weather_delay`, `carrier_delay`, `nas_delay` are only known post-flight.  
+At inference time they are set to 0. The model compensates via `route_avg_delay`  
+and `carrier_avg_delay` which embed historical delay patterns.
 
 **6. Kafka and Cassandra are intentional stubs.**  
 `services/kafka_consumer.py` and `services/cassandra_store.py` are scaffolding.  
 Do not wire them into the main prediction path without a running broker/cluster.
 
-**7. The frontend calls Open-Meteo directly — no proxy.**  
-`fetchLiveWeather()` in `app.js` calls `api.open-meteo.com` from the browser.  
-No API key required. No backend involvement. Keep it this way.
+**7. All endpoints are defined in one file.**  
+`api/app.py` is the only place endpoints are registered. Do not create new routers  
+or split endpoints across files without good reason.
 
 **8. The model hot-reloads on file change.**  
 `model_registry.py` checks `lgb_delay_model.txt` mtime on every request.  
 After retraining, the running server picks up the new model automatically.
-
-**9. All endpoints are defined in one file.**  
-`api/app.py` is the only place endpoints are registered. Do not create new routers  
-or split endpoints across files without good reason.
 
 ---
 
 ## What NOT to Do
 
 - Do not add `arr_delay` as a feature — it is data leakage (unknown before departure).
+- Do not add current-flight `WEATHER_DELAY`, `NAS_DELAY`, or `CARRIER_DELAY` directly — leakage.
 - Do not import `ml/features.py`, `ml/inference.py`, or `ml/evaluate.py` — they were  
   removed as unused. The equivalent logic lives in `train.py` and `model_registry.py`.
 - Do not import `config/settings.py` — it was removed as unused. Configuration is  
@@ -215,17 +225,23 @@ or split endpoints across files without good reason.
 
 ## Model Performance (last training run)
 
+**Dataset: BTS On-Time Performance 2023 (transtats.bts.gov) — full year, all US airports**
+
 | Metric | Value |
 |--------|-------|
-| MAE | 18.43 min |
-| RMSE | 35.33 min |
-| R² | 0.177 |
-| F1 @15min | 0.488 |
-| Precision @15min | 0.399 |
-| Recall @15min | 0.627 |
-| Best iteration | 1488 / 3000 |
-| Training rows | 262,816 |
-| Validation rows | 65,705 |
+| MAE | 8.10 min |
+| RMSE (validation) | 27.02 min |
+| RMSE (train) | 25.14 min |
+| Train/Val gap | 1.88 min |
+| Median AE | 3.00 min |
+| R² | 0.750 |
+| F1 @15min | 0.786 |
+| Precision @15min | 0.819 |
+| Recall @15min | 0.756 |
+| Best iteration | 2257 / 3000 |
+| Training rows | 5,410,696 |
+| Validation rows | 1,352,674 |
 
-R² ~0.18 is near the ceiling for nycflights13 features.  
-The dataset lacks tail-delay tracking and live ATC data, which are the primary predictors in production systems.
+R² 0.75 is production-quality. The key upgrade over nycflights13 was `prev_tail_delay`
+(previous flight delay for the same aircraft), which captures tail-delay propagation —
+the single largest predictor of departure delays in real-world systems.

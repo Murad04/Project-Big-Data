@@ -268,8 +268,8 @@
   </div>
   <div class="header-badges">
     <span class="hbadge hl">LightGBM</span>
+    <span class="hbadge hl">BTS 2023</span>
     <span class="hbadge hl">Dask</span>
-    <span class="hbadge hl">Open-Meteo</span>
     <span class="hbadge">FastAPI</span>
     <span class="hbadge">Chart.js</span>
   </div>
@@ -284,7 +284,7 @@
 
   <div class="flow-card">
     <div class="flow-title">End-to-End Data &amp; ML Pipeline</div>
-    <div class="flow-desc">Live data flow from raw CSVs through Dask preprocessing, LightGBM training, FastAPI serving, and the web frontend.</div>
+    <div class="flow-desc">Live data flow from BTS CSV through tail-delay feature engineering, LightGBM training, FastAPI serving, and the web frontend.</div>
 
     <div class="flow-diagram">
 
@@ -293,7 +293,7 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">📁</span>
         <div class="fn-title">Data Sources</div>
-        <div class="fn-sub">nyc_flights.csv<br>nyc_weather.csv<br>328 K rows · 2013</div>
+        <div class="fn-sub">BTS On-Time 2023<br>All US airports<br>6.76 M rows</div>
         <span class="fn-tag">CSV</span>
       </div>
 
@@ -301,13 +301,13 @@
         <div class="fc-dot"></div><div class="fc-dot"></div><div class="fc-dot"></div>
       </div>
 
-      <!-- Dask -->
+      <!-- BTS Preprocessing -->
       <div class="fn" style="--nc:#8b5cf6">
         <div class="fn-pulse"></div>
         <span class="fn-icon">⚡</span>
-        <div class="fn-title">Dask Pipeline</div>
-        <div class="fn-sub">Parallel task graph<br>Lazy evaluation<br>Parquet output</div>
-        <span class="fn-tag">dask_preprocess.py</span>
+        <div class="fn-title">BTS Preprocessing</div>
+        <div class="fn-sub">Tail-delay propagation<br>6.76 M rows · Parquet<br>prev_tail_delay</div>
+        <span class="fn-tag">bts_preprocess.py</span>
       </div>
 
       <div class="fc" style="--from:#8b5cf6;--to:#06b6d4">
@@ -319,20 +319,20 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">🔧</span>
         <div class="fn-title">Feature Engineering</div>
-        <div class="fn-sub">14 features<br>departure_hour · distance<br>route/carrier avg<br>weather · congestion<br>quarter · is_weekend</div>
-        <span class="fn-tag">preprocess.py</span>
+        <div class="fn-sub">18 features<br>prev_tail_delay · tail_flag<br>weather_delay · carrier_delay<br>nas_delay · congestion<br>route/carrier avg</div>
+        <span class="fn-tag">bts_preprocess.py</span>
       </div>
 
       <div class="fc" style="--from:#06b6d4;--to:#10b981">
         <div class="fc-dot"></div><div class="fc-dot"></div><div class="fc-dot"></div>
       </div>
 
-      <!-- CatBoost -->
+      <!-- LightGBM -->
       <div class="fn" style="--nc:#10b981">
         <div class="fn-pulse"></div>
         <span class="fn-icon">🤖</span>
         <div class="fn-title">LightGBM</div>
-        <div class="fn-sub">3000 rounds · 63 leaves<br>14 features<br>MAE 18.43 min<br>R² 0.177</div>
+        <div class="fn-sub">3000 rounds · 63 leaves<br>18 features<br>MAE 8.10 min<br>R² 0.750</div>
         <span class="fn-tag">train.py</span>
       </div>
 
@@ -345,29 +345,18 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">🚀</span>
         <div class="fn-title">FastAPI</div>
-        <div class="fn-sub">6 endpoints<br>Hot-reload model<br>:8000</div>
+        <div class="fn-sub">10 endpoints<br>Hot-reload model<br>:8000</div>
         <div class="api-endpoints">
           <span class="ep">/predict</span>
           <span class="ep">/predict/batch</span>
           <span class="ep">/feature-importance</span>
           <span class="ep">/metrics</span>
+          <span class="ep">/training-logs</span>
+          <span class="ep">/training-analysis</span>
         </div>
       </div>
 
-      <div class="fc" style="--from:#f59e0b;--to:#06b6d4">
-        <div class="fc-dot"></div><div class="fc-dot"></div><div class="fc-dot"></div>
-      </div>
-
-      <!-- Open-Meteo -->
-      <div class="fn" style="--nc:#06b6d4">
-        <div class="fn-pulse"></div>
-        <span class="fn-icon">🌤</span>
-        <div class="fn-title">Open-Meteo</div>
-        <div class="fn-sub">Free weather API<br>No key needed<br>Browser fetch<br>temp · wind · precip<br>humid · pressure</div>
-        <span class="fn-tag">api.open-meteo.com</span>
-      </div>
-
-      <div class="fc" style="--from:#06b6d4;--to:#ec4899">
+      <div class="fc" style="--from:#f59e0b;--to:#ec4899">
         <div class="fc-dot"></div><div class="fc-dot"></div><div class="fc-dot"></div>
       </div>
 
@@ -387,17 +376,17 @@
       <div class="sub-row">
         <div class="sub-label">Training</div>
         <div class="sub-nodes">
-          <div class="sn" style="--nc:#10b981">
-            <div class="sn-title">pandas preprocess.py</div>
-            <div class="sn-desc">Default path · random sample · all 14 features computed in memory</div>
+          <div class="sn" style="--nc:#f59e0b">
+            <div class="sn-title">bts_preprocess.py  <code style="font-size:0.6rem;color:#fbbf24">Production</code></div>
+            <div class="sn-desc">BTS 2023 · 6.76M rows · tail-delay propagation · 18 features · outputs Parquet</div>
           </div>
           <div class="sn" style="--nc:#8b5cf6">
-            <div class="sn-title">dask_preprocess.py  <code style="font-size:0.6rem;color:#a78bfa">--use-dask</code></div>
-            <div class="sn-desc">Parallel groupby · lazy task graph · writes Parquet · no Java needed</div>
+            <div class="sn-title">dask_preprocess.py  <code style="font-size:0.6rem;color:#a78bfa">nycflights13</code></div>
+            <div class="sn-desc">Parallel groupby · lazy task graph · 14 features · legacy nycflights13 path</div>
           </div>
           <div class="sn" style="--nc:#10b981">
-            <div class="sn-title">train_catboost.py</div>
-            <div class="sn-desc">80/20 split · early stopping · saves .txt + metrics.json + lookups.json + label_encoders.json</div>
+            <div class="sn-title">train_lgb.py  →  train_model()</div>
+            <div class="sn-desc">80/20 stratified split · auto-detects BTS features · early stopping · saves model + 6 artifacts</div>
           </div>
         </div>
       </div>
@@ -406,28 +395,23 @@
         <div class="sub-nodes">
           <div class="sn" style="--nc:#f59e0b">
             <div class="sn-title">lgb_delay_model.txt</div>
-            <div class="sn-desc">Trained LightGBM model · hot-reloaded by model registry on file change</div>
+            <div class="sn-desc">Trained LightGBM model · hot-reloaded by model registry on mtime change</div>
           </div>
           <div class="sn" style="--nc:#f59e0b">
-            <div class="sn-title">catboost_metrics.json</div>
-            <div class="sn-desc">MAE · RMSE · R² · F1 · Precision · Recall — served by /metrics endpoint</div>
+            <div class="sn-title">lgb_metrics.json</div>
+            <div class="sn-desc">MAE 8.10 · RMSE 27.02 · R² 0.75 · F1 0.786 — served by /metrics</div>
           </div>
           <div class="sn" style="--nc:#f59e0b">
             <div class="sn-title">delay_lookups.json</div>
-            <div class="sn-desc">Route avg and carrier avg delay tables — used at inference time</div>
+            <div class="sn-desc">Route avg · carrier avg · route_distance — fallback to overall_avg for unknown routes</div>
           </div>
-        </div>
-      </div>
-      <div class="sub-row">
-        <div class="sub-label">Live</div>
-        <div class="sub-nodes">
-          <div class="sn" style="--nc:#06b6d4">
-            <div class="sn-title">Open-Meteo API  (browser-side)</div>
-            <div class="sn-desc">Free · no API key · CORS-enabled · fetches temp, wind, gusts, precip, humidity, pressure for any airport by coordinates</div>
+          <div class="sn" style="--nc:#f59e0b">
+            <div class="sn-title">label_encoders.json</div>
+            <div class="sn-desc">airline_code · origin · destination → integer codes for LightGBM categorical features</div>
           </div>
-          <div class="sn" style="--nc:#06b6d4">
-            <div class="sn-title">computeWeatherSeverity()  app.js</div>
-            <div class="sn-desc">Mirrors Python formula exactly · auto-fills the 0-10 severity slider · user can still override manually</div>
+          <div class="sn" style="--nc:#f59e0b">
+            <div class="sn-title">feature_columns.json</div>
+            <div class="sn-desc">Active feature list for this model run — loaded at inference to build correct row shape</div>
           </div>
         </div>
       </div>
@@ -446,24 +430,25 @@
     <table class="status-table">
       <thead><tr><th>Component</th><th>File</th><th>Status</th></tr></thead>
       <tbody>
-        <tr><td>Pandas preprocessing pipeline</td><td>pipelines/preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Dask preprocessing pipeline — parallel, no Java</td><td>pipelines/dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>14-feature engineering — distance, quarter, is_weekend, is_peak_hour + enhanced weather_severity</td><td>pipelines/preprocess.py · dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Route distance lookup table — auto-resolved from origin+destination at inference</td><td>artifacts/delay_lookups.json</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Live weather auto-fetch — Open-Meteo API called from browser on airport select</td><td>frontend/app.js</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Airport coordinates table — 30 airports, used to call Open-Meteo</td><td>frontend/app.js · AIRPORT_COORDS</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Weather severity JS formula — mirrors Python formula, auto-fills slider</td><td>frontend/app.js · computeWeatherSeverity()</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>LightGBM training — 3000 rounds, 63 leaves, early stopping, label encoding</td><td>ml/train.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Full evaluation metrics — MAE, RMSE, R², F1, Precision, Recall @15min</td><td>artifacts/catboost_metrics.json</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Route &amp; carrier delay lookup tables for inference</td><td>artifacts/delay_lookups.json</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>BTS On-Time 2023 preprocessor — tail-delay propagation, 18 features, 6.76M rows</td><td>pipelines/bts_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Dask preprocessing pipeline — parallel, no Java (nycflights13 legacy)</td><td>pipelines/dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Pandas preprocessing pipeline (nycflights13 legacy)</td><td>pipelines/preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>LightGBM training — auto-detects BTS features, 3000 rounds, early stopping</td><td>ml/train.py · train_model()</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Label encoders — airline/airport → integer codes, saved per training run</td><td>artifacts/label_encoders.json</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Feature columns — active feature list saved per run, loaded at inference</td><td>artifacts/feature_columns.json</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Route &amp; carrier delay lookup tables — fallback to overall_avg for unknown routes</td><td>artifacts/delay_lookups.json</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Full evaluation metrics — MAE 8.10 · RMSE 27.02 · R² 0.75 · F1 0.786</td><td>artifacts/lgb_metrics.json</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Model registry with hot-reload on file change</td><td>services/model_registry.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>POST /predict — single flight prediction with severity</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>POST /predict — single flight prediction with SHAP feature contributions</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>POST /predict/batch — up to 200 flights per call</td><td>api/app.py · api/schemas.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>GET /feature-importance — LightGBM gain importance scores</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>GET /training-logs — RMSE per iteration from lgb_training_logs.json</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>GET /training-analysis — confusion matrix, per-airline/month/hour MAE</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>GET /metrics · /model-info · /health</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Web frontend — form, severity ring, prediction history</td><td>frontend/index.html · app.js · styles.css</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>GET /training-logs-view · /architecture-view — HTML pages served via API</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Web frontend — prediction form, weather card, severity ring, history</td><td>frontend/index.html · app.js · styles.css</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Feature importance bar chart — Chart.js, live from API</td><td>frontend/app.js</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>Batch prediction table — 6 pre-loaded test flights</td><td>frontend/app.js</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>Batch prediction table — pre-loaded test flights</td><td>frontend/app.js</td><td><span class="tag tag-done">Done</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -478,24 +463,22 @@
     <div class="diagram-header">
       <span class="diagram-num">DIAGRAM 1</span>
       <div class="diagram-title">ML Training Pipeline</div>
-      <div class="diagram-desc">Step-by-step flow — two preprocessing paths, LightGBM training with early stopping, and artifact persistence.</div>
+      <div class="diagram-desc">Step-by-step flow — BTS preprocessing with tail-delay propagation, LightGBM training with early stopping, and 6-artifact persistence.</div>
     </div>
     <div class="diagram-wrap">
       <div class="mermaid">
 %%{init:{"theme":"dark","themeVariables":{"fontSize":"11px","primaryColor":"#1e3a5f","primaryTextColor":"#e2e8f0","primaryBorderColor":"#3b82f6","lineColor":"#3b82f6","secondaryColor":"#1a2235","tertiaryColor":"#111827","clusterBkg":"#111827","clusterBorder":"#1e3a5f","titleColor":"#e2e8f0","edgeLabelBackground":"#111827","fontFamily":"Inter,ui-sans-serif"}}}%%
 flowchart TD
-    START(["train_catboost.py"]) --> FLAG{Flag?}
-    FLAG -->|default| PAN["Pandas\npreprocess.py"]
-    FLAG -->|"--use-dask"| DSK["Dask\ndask_preprocess.py\nWrite Parquet"]
-    DSK --> PQ["Read Parquet"]
-    PAN --> DF
-    PQ  --> DF
-    DF["DataFrame\n14 features · 328K rows"] --> SPLIT["80/20 split  seed=42"]
+    BTS(["bts_preprocess.py\n--input bts_flights.csv"]) --> BTS2["Tail-delay propagation\nprev_tail_delay · late_aircraft_flag\nroute/carrier avg · congestion"]
+    BTS2 --> PQ["bts_features.parquet\n6.76M rows · 18 features"]
+    PQ --> START(["train_lgb.py\n--processed-data"])
+    START --> DF
+    DF["DataFrame\n18 features · 6.76M rows BTS 2023"] --> SPLIT["80/20 stratified split  seed=42"]
     SPLIT --> FIT["lgb.train\n3000 rounds · 63 leaves\nlr=0.05 · early_stop=100"]
     FIT --> EVAL["Evaluate on validation"]
     EVAL --> S1["lgb_delay_model.txt"]
-    EVAL --> S2["catboost_metrics.json\nMAE 18.43 · RMSE 35.33\nR2 0.177 · F1 0.488"]
-    EVAL --> S3["delay_lookups.json + label_encoders.json\nroute_avg · carrier_avg\nroute_distance · overall_distance"]
+    EVAL --> S2["lgb_metrics.json\nMAE 8.10 · Train RMSE 25.14\nVal RMSE 27.02 · R2 0.750 · F1 0.786"]
+    EVAL --> S3["delay_lookups.json · label_encoders.json\nfeature_columns.json\nroute_avg · carrier_avg · route_distance"]
     S1 & S2 & S3 --> DONE(["Done"])
       </div>
     </div>
@@ -506,7 +489,7 @@ flowchart TD
     <div class="diagram-header">
       <span class="diagram-num">DIAGRAM 2</span>
       <div class="diagram-title">API Endpoints</div>
-      <div class="diagram-desc">All six FastAPI endpoints, what they read, and what they return.</div>
+      <div class="diagram-desc">All FastAPI endpoints, what they read, and what they return.</div>
     </div>
     <div class="diagram-wrap">
       <div class="mermaid">
@@ -515,21 +498,26 @@ flowchart LR
     CLI["Browser / Client"]
     subgraph REG["Model Registry"]
         MDL["LightGBM Booster\nin memory"]
-        LKP["delay_lookups.json"]
+        LKP["delay_lookups.json\nlabel_encoders.json\nfeature_columns.json"]
     end
     subgraph API["FastAPI · :8000"]
-        E1["POST /predict\ndelay_minutes · severity"]
-        E2["POST /predict/batch\nlist up to 200 flights"]
-        E3["GET /feature-importance\nsorted importance %"]
-        E4["GET /metrics\nMAE RMSE R2 F1"]
-        E5["GET /model-info · /health"]
         E0["GET /\nindex.html"]
+        E1["POST /predict\ndelay_minutes · SHAP contribs"]
+        E2["POST /predict/batch\nup to 200 flights"]
+        E3["GET /feature-importance\ngain importance sorted"]
+        E4["GET /metrics\nMAE RMSE R2 F1 Precision Recall"]
+        E5["GET /model-info · /health"]
+        E6["GET /training-logs\nRMSE per iteration"]
+        E7["GET /training-analysis\nconfusion matrix · per-airline/month/hour"]
+        E8["GET /training-logs-view\n/architecture-view · HTML pages"]
     end
-    MTJ["catboost_metrics.json"]
-    CLI --> E0 & E1 & E2 & E3 & E4 & E5
+    MTJ["lgb_metrics.json"]
+    ANA["training_analysis.json\nlgb_training_logs.json"]
+    CLI --> E0 & E1 & E2 & E3 & E4 & E5 & E6 & E7 & E8
     MDL & LKP --> E1 & E2 & E3
     MDL --> E5
     MTJ --> E4
+    ANA --> E6 & E7
       </div>
     </div>
   </div>
@@ -539,19 +527,20 @@ flowchart LR
     <div class="diagram-header">
       <span class="diagram-num">DIAGRAM 3</span>
       <div class="diagram-title">Feature Engineering</div>
-      <div class="diagram-desc">How each of the 14 features is derived from raw columns, and how they are resolved at inference time.</div>
+      <div class="diagram-desc">How each of the 18 features is derived from raw BTS columns, and how they are resolved at inference time.</div>
     </div>
     <div class="diagram-wrap">
       <div class="mermaid">
 %%{init:{"theme":"dark","themeVariables":{"fontSize":"11px","primaryColor":"#1e3a5f","primaryTextColor":"#e2e8f0","primaryBorderColor":"#3b82f6","lineColor":"#3b82f6","clusterBkg":"#111827","clusterBorder":"#1e3a5f","fontFamily":"Inter,ui-sans-serif"}}}%%
 flowchart LR
-    subgraph RAW["Raw Columns"]
-        R1["hour · year · month · day"]
-        R2["carrier · origin · dest"]
-        R3["dep_delay"]
-        R4["wind · precip · visib"]
+    subgraph RAW["BTS Raw Columns"]
+        R1["CRSDepTime · FlightDate"]
+        R2["Reporting_Airline · Origin · Dest"]
+        R3["DepDelay · Distance"]
+        R4["Tail_Number"]
+        R5["WeatherDelay · CarrierDelay · NASDelay"]
     end
-    subgraph FEAT["14 Training Features"]
+    subgraph FEAT["18 Training Features"]
         A["departure_hour  0-23"]
         B["day_of_week  ISO 1-7"]
         C["month  1-12"]
@@ -560,54 +549,42 @@ flowchart LR
         CP["is_peak_hour  0/1"]
         D["airline_code  categorical"]
         E["origin · destination  categorical"]
-        F["weather_severity  0-10\nwind+precip+vis+gust\n+temp+humid+pressure"]
         G["airport_congestion  0-10"]
         H["route_avg_delay  >= 0"]
         I["carrier_avg_delay  >= 0"]
         J["distance  miles"]
+        K["prev_tail_delay  >= 0"]
+        L["late_aircraft_flag  0/1"]
+        M["weather_delay  >= 0"]
+        N["carrier_delay  >= 0"]
+        O["nas_delay  >= 0"]
     end
     subgraph INF["At Inference  model_registry.py"]
         I1["hour from ISO datetime string"]
         I2["route_avg lookup delay_lookups.json"]
         I3["carrier_avg lookup delay_lookups.json"]
-        I4["distance lookup delay_lookups.json\nroute_distance key"]
-        I5["weather_severity\nauto-filled by Open-Meteo\nor user slider"]
+        I4["distance lookup delay_lookups.json"]
+        I5["weather/carrier/nas delay\ndefault 0 — unknown pre-departure"]
+        I6["label_encoders.json\nairline · origin · dest → int codes"]
+        I7["prev_tail_delay default 0\nlate_aircraft_flag default 0"]
     end
     R1 --> A & B & C & CQ & CW & CP
-    R2 --> D & E & J
-    R3 --> G & H & I
-    R4 --> F
+    R2 --> D & E & G
+    R3 --> H & I & J
+    R3 --> G
+    R4 --> K & L
+    R5 --> M & N & O
     A -.-> I1
     H -.-> I2
     I -.-> I3
     J -.-> I4
-    F -.-> I5
+    M & N & O -.-> I5
+    D & E -.-> I6
+    K & L -.-> I7
       </div>
     </div>
   </div>
 
-  <!-- Open-Meteo Flow -->
-  <div class="diagram-card">
-    <div class="diagram-header">
-      <span class="diagram-num">DIAGRAM 4</span>
-      <div class="diagram-title">Live Weather Auto-Fetch — Open-Meteo</div>
-      <div class="diagram-desc">When the user selects an origin airport the browser fetches current weather from Open-Meteo (free, no API key). The same formula used in training computes weather_severity and auto-fills the slider.</div>
-    </div>
-    <div class="diagram-wrap">
-      <div class="mermaid">
-%%{init:{"theme":"dark","themeVariables":{"fontSize":"11px","primaryColor":"#1e3a5f","primaryTextColor":"#e2e8f0","primaryBorderColor":"#3b82f6","lineColor":"#3b82f6","clusterBkg":"#111827","clusterBorder":"#1e3a5f","fontFamily":"Inter,ui-sans-serif"}}}%%
-flowchart TD
-    SEL["User selects Origin airport\ne.g. EWR"] --> COORD
-    COORD["AIRPORT_COORDS lookup\nEWR lat=40.69 lon=-74.17\n30 airports hardcoded in app.js"]
-    COORD --> FETCH["fetch() from browser\napi.open-meteo.com/v1/forecast\nlatitude · longitude\ncurrent fields: temp wind_speed\nwind_gusts precip humidity pressure\nwind_speed_unit=mph\ntemperature_unit=fahrenheit\nprecipitation_unit=inch"]
-    FETCH --> JSON["JSON response\ntemperature_2m: 58.4 F\nwind_speed_10m: 12.3 mph\nwind_gusts_10m: 18.7 mph\nprecipitation: 0.00 in\nrelative_humidity_2m: 64 pct\nsurface_pressure: 1011.2 hPa"]
-    JSON --> FORMULA["computeWeatherSeverity()\nSame weights as Python training\n0.24xprecip + 0.16xwind\n+0.16xgust + 0.12xtemp_pen\n+0.10xhumidxprecip\n+0.08xpress_pen\nx10 -> scale 0-10"]
-    FORMULA --> SLIDER["Auto-fill slider\nweather_severity = 1.8\nUser can still override"]
-    SLIDER --> CARD["Show weather card\nTemp · Wind · Gusts\nPrecip · Humidity · Pressure"]
-    CARD --> PREDICT["User clicks Predict\nweather_severity=1.8\nsent to POST /predict"]
-      </div>
-    </div>
-  </div>
 
 </div>
 

@@ -10,7 +10,7 @@ from .preprocess import download_public_datasets, load_and_prepare_training_data
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Train CatBoost model for flight delay prediction.")
+    parser = argparse.ArgumentParser(description="Train LightGBM model for flight delay prediction.")
     parser.add_argument("--data-dir",      default="data/raw",       help="Directory for raw CSV downloads.")
     parser.add_argument("--models-dir",    default="models",         help="Directory to save model files.")
     parser.add_argument("--artifacts-dir", default="artifacts",      help="Directory to save metrics/reports.")

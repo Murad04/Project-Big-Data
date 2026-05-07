@@ -9,7 +9,7 @@ Usage:
     python -m flight_delay_platform.pipelines.dask_preprocess --max-rows 150000
 
 Then train from the output:
-    python -m flight_delay_platform.pipelines.train_catboost --use-dask
+    python -m flight_delay_platform.pipelines.train_lgb --use-dask
 """
 from __future__ import annotations
 
@@ -214,7 +214,7 @@ def main() -> None:
 
     if not flights_path.exists() or not weather_path.exists():
         print("Raw CSV files not found — run the pandas pipeline once to download them:")
-        print("  python -m flight_delay_platform.pipelines.train_catboost --max-rows 1")
+        print("  python -m flight_delay_platform.pipelines.train_lgb --max-rows 1")
         raise SystemExit(1)
 
     run_dask_pipeline(
@@ -224,7 +224,7 @@ def main() -> None:
         max_rows=args.max_rows,
     )
     print("\nNext step - train LightGBM from Dask output:")
-    print("  python -m flight_delay_platform.pipelines.train_catboost --processed-data data/processed/features.parquet")
+    print("  python -m flight_delay_platform.pipelines.train_lgb --processed-data data/processed/features.parquet")
 
 
 if __name__ == "__main__":

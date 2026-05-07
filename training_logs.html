@@ -242,15 +242,6 @@
     </div>
   </div>
 
-  <!-- ── Iteration table ── -->
-  <p class="sec">Iteration Log</p>
-  <div class="card" style="padding:0">
-    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
-      <span style="font-size:0.82rem;font-weight:700;color:#fff">Detailed Iteration Table</span>
-      <span style="font-size:0.68rem;color:var(--muted);margin-left:auto" id="table-note">Loading…</span>
-    </div>
-    <div id="iter-table-wrap"><div class="empty"><div class="spinner"></div><p>Loading…</p></div></div>
-  </div>
 
 </div>
 
@@ -323,7 +314,6 @@ async function load() {
       drawHour(analysis.per_hour);
     }
 
-    drawTable(logs.train, logs.validation, metrics?.best_iteration);
 
   } catch (err) {
     pill.textContent = 'Error'; pill.className = 'pill error';
@@ -514,35 +504,6 @@ function drawHour(data) {
   }});
 }
 
-function drawTable(train, val, bestIter) {
-  const step = 50;
-  const trainMap = Object.fromEntries(train.map(r=>[r.iter, r.rmse]));
-  const valMap   = Object.fromEntries(val.map(r=>[r.iter, r.rmse]));
-  const minValIter = val.reduce((best,r) => r.rmse < (valMap[best]??Infinity) ? r.iter : best, val[0]?.iter ?? 0);
-
-  const iters = [...new Set([...train.map(r=>r.iter), ...val.map(r=>r.iter)])]
-    .filter(i => i % step === 0 || i === 0).sort((a,b)=>a-b);
-
-  const rows = iters.map(iter => {
-    const tr = trainMap[iter] ?? null;
-    const vl = valMap[iter]   ?? null;
-    const gap = (tr!=null && vl!=null) ? vl - tr : null;
-    const isBest = Math.abs(iter - minValIter) < step;
-    return `<tr class="${isBest?'best':''}">
-      <td class="td-mono">${iter}${isBest?'<span class="best-badge">best</span>':''}</td>
-      <td class="td-train">${tr!=null?tr.toFixed(4):'--'}</td>
-      <td class="td-val">${vl!=null?vl.toFixed(4):'--'}</td>
-      <td class="td-gap ${gap>0?'pos':'neg'}">${gap!=null?(gap>0?'+':'')+gap.toFixed(4):'--'}</td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('table-note').textContent = `Every ${step}th iteration · best val RMSE at iter ${minValIter}`;
-  document.getElementById('iter-table-wrap').innerHTML = `
-    <table class="iter-table">
-      <thead><tr><th>Iteration</th><th>Train RMSE</th><th>Val RMSE</th><th>Gap (Val−Train)</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
 
 load();
 </script>

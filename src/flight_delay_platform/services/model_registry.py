@@ -38,7 +38,7 @@ def _load_feature_columns() -> list[str]:
     if path.exists():
         with open(path) as f:
             return json.load(f)
-    # fallback: nycflights13 base features
+    # fallback: base features if feature_columns.json not present
     return [
         "weather_severity", "airport_congestion", "departure_hour",
         "day_of_week", "month", "quarter", "is_weekend", "is_peak_hour",

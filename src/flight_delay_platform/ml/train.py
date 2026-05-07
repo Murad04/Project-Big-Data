@@ -244,7 +244,7 @@ def train_model(
         "objective": "regression",    # RMSE loss
         "metric": "rmse",
         "num_leaves": 63,              # ~depth 6 equivalent (2^6 - 1)
-        "learning_rate": 0.05,
+        "learning_rate": 0.02,
         "reg_lambda": 5.0,
         "min_child_samples": 20,
         "subsample": 0.8,
@@ -301,7 +301,7 @@ def train_model(
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     model_path    = models_dir    / "lgb_delay_model.txt"
-    metrics_path  = artifacts_dir / "catboost_metrics.json"
+    metrics_path  = artifacts_dir / "lgb_metrics.json"
     lookups_path  = artifacts_dir / "delay_lookups.json"
     encoders_path = artifacts_dir / "label_encoders.json"
     logs_path     = artifacts_dir / "lgb_training_logs.json"

@@ -1,4 +1,5 @@
 import json
+import traceback
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -60,6 +61,11 @@ def training_logs_view() -> FileResponse:
     return FileResponse(PROJECT_ROOT / "training_logs.html")
 
 
+@app.get("/architecture-view")
+def architecture_view() -> FileResponse:
+    return FileResponse(PROJECT_ROOT / "architecture.html")
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse()
@@ -67,14 +73,17 @@ def health() -> HealthResponse:
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest) -> PredictionResponse:
-    model = load_active_model()
-    feats = request.to_features()
-    return PredictionResponse(
-        predicted_delay_minutes=model.predict(feats),
-        model_name=model.name,
-        inputs=feats,
-        feature_contributions=model.explain(feats),
-    )
+    try:
+        model = load_active_model()
+        feats = request.to_features()
+        return PredictionResponse(
+            predicted_delay_minutes=model.predict(feats),
+            model_name=model.name,
+            inputs=feats,
+            feature_contributions=model.explain(feats),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
 
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
@@ -112,7 +121,7 @@ def get_model_info() -> ModelInfoResponse:
 
 @app.get("/metrics")
 def get_metrics() -> dict:
-    metrics_path = PROJECT_ROOT / "artifacts" / "catboost_metrics.json"
+    metrics_path = PROJECT_ROOT / "artifacts" / "lgb_metrics.json"
     if not metrics_path.exists():
         raise HTTPException(status_code=404, detail="Metrics file not found")
     with open(metrics_path) as f:
