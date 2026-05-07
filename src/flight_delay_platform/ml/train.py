@@ -18,7 +18,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import train_test_split
 
-from catboost import CatBoostRegressor
+import lightgbm as lgb
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ FEATURE_COLUMNS = [
     "departure_hour",
     "day_of_week",
     "month",
+    "quarter",
     "is_weekend",
     "is_peak_hour",
     "airline_code",
@@ -43,6 +44,14 @@ FEATURE_COLUMNS = [
     "route_avg_delay",
     "carrier_avg_delay",
     "distance",
+]
+# BTS-only features — included automatically when the DataFrame contains them
+BTS_FEATURE_COLUMNS = [
+    "prev_tail_delay",    # previous flight delay for same aircraft (biggest R² boost)
+    "late_aircraft_flag", # binary: was inbound plane > 15 min late?
+    "weather_delay",      # BTS-reported weather delay minutes
+    "carrier_delay",      # BTS-reported carrier/mechanical delay
+    "nas_delay",          # BTS-reported ATC/ground-stop delay
 ]
 TARGET_COLUMN = "delay_minutes"
 CATEGORICAL_COLUMNS = ["airline_code", "origin", "destination"]
@@ -165,22 +174,32 @@ def _compute_training_analysis(
     print(f"Training analysis saved -> {path}")
 
 
-def train_catboost_model(
+def train_model(
     df: pd.DataFrame,
     models_dir: Path,
     artifacts_dir: Path,
-    model_name: str = "catboost-delay-regressor",
+    model_name: str = "lgb-delay-regressor",
 ) -> TrainingResult:
-    required_columns = set(FEATURE_COLUMNS + [TARGET_COLUMN])
-    missing = required_columns - set(df.columns)
-    if missing:
-        raise ValueError(f"Missing columns: {', '.join(sorted(missing))}")
+    if TARGET_COLUMN not in df.columns:
+        raise ValueError(f"Missing target column: {TARGET_COLUMN}")
+
+    # Use base features that exist + any BTS extras present in the DataFrame
+    active_features = (
+        [c for c in FEATURE_COLUMNS if c in df.columns]
+        + [c for c in BTS_FEATURE_COLUMNS if c in df.columns]
+    )
+    missing_base = [c for c in FEATURE_COLUMNS if c not in df.columns]
+    if missing_base:
+        print(f"  Note: base features not found (skipped): {missing_base}")
+    bts_found = [c for c in BTS_FEATURE_COLUMNS if c in df.columns]
+    if bts_found:
+        print(f"  BTS features detected: {bts_found}")
 
     # Stratified split keeps delayed/on-time proportions equal across train and val
     stratify_labels = (df[TARGET_COLUMN] >= DELAY_THRESHOLD).astype(int)
     df_train, df_valid = train_test_split(df, test_size=0.2, random_state=42, stratify=stratify_labels)
-    X_train = df_train[FEATURE_COLUMNS].copy()
-    X_valid = df_valid[FEATURE_COLUMNS].copy()
+    X_train = df_train[active_features].copy()
+    X_valid = df_valid[active_features].copy()
     y_train = df_train[TARGET_COLUMN].astype(float)
     y_valid = df_valid[TARGET_COLUMN].astype(float)
 
@@ -206,24 +225,48 @@ def train_catboost_model(
             X["airline_code"].map(carrier_avg_train).fillna(overall_avg_train)
         )
 
-    cat_features_idx = [list(X_train.columns).index(col) for col in CATEGORICAL_COLUMNS]
+    # Label-encode categoricals: LightGBM requires non-negative integer codes
+    active_cats = [c for c in CATEGORICAL_COLUMNS if c in active_features]
+    label_encoders: dict[str, dict[str, int]] = {}
+    for col in active_cats:
+        cats = sorted(X_train[col].unique().tolist())
+        label_encoders[col] = {c: i for i, c in enumerate(cats)}
+        n = len(cats)
+        X_train[col] = X_train[col].map(label_encoders[col]).astype(int)
+        # Unknown categories at val time → n (out-of-range, treated as missing)
+        X_valid[col] = X_valid[col].map(label_encoders[col]).fillna(n).astype(int)
 
-    model = CatBoostRegressor(
-        loss_function="RMSE",
-        eval_metric="RMSE",
-        iterations=_N_ITERATIONS,
-        depth=6,                    # was 8; shallower trees reduce overfitting
-        learning_rate=0.05,
-        l2_leaf_reg=5.0,            # was 3.0; stronger L2 regularisation
-        min_data_in_leaf=20,        # prevents splits on rare routes
-        subsample=0.8,              # row sampling per tree
-        bootstrap_type="Bernoulli", # required for subsample
-        colsample_bylevel=0.8,      # feature sampling per depth level
-        random_seed=42,
-        verbose=100,
-        early_stopping_rounds=100,  # was 50; more patience for convergence
+    evals_result: dict = {}
+    train_set = lgb.Dataset(X_train, label=y_train, categorical_feature=active_cats)
+    valid_set = lgb.Dataset(X_valid, label=y_valid, reference=train_set)
+
+    params = {
+        "objective": "regression",    # RMSE loss
+        "metric": "rmse",
+        "num_leaves": 63,              # ~depth 6 equivalent (2^6 - 1)
+        "learning_rate": 0.05,
+        "reg_lambda": 5.0,
+        "min_child_samples": 20,
+        "subsample": 0.8,
+        "subsample_freq": 1,
+        "colsample_bytree": 0.8,
+        "cat_smooth": 10,
+        "random_state": 42,
+        "verbose": -1,
+    }
+
+    model = lgb.train(
+        params,
+        train_set,
+        num_boost_round=_N_ITERATIONS,
+        valid_sets=[train_set, valid_set],
+        valid_names=["train", "valid"],
+        callbacks=[
+            lgb.early_stopping(100),
+            lgb.log_evaluation(100),
+            lgb.record_evaluation(evals_result),
+        ],
     )
-    model.fit(X_train, y_train, cat_features=cat_features_idx, eval_set=(X_valid, y_valid))
 
     pred_valid = np.maximum(model.predict(X_valid), 0.0)
     y_true_bin = (y_valid.values >= DELAY_THRESHOLD).astype(int)
@@ -234,6 +277,8 @@ def train_catboost_model(
         float(np.mean(np.abs((y_valid.values[nonzero] - pred_valid[nonzero]) / y_valid.values[nonzero])) * 100)
         if nonzero.any() else 0.0
     )
+
+    best_iter = int(model.best_iteration) if model.best_iteration > 0 else _N_ITERATIONS
 
     metrics: dict[str, Any] = {
         "sample_count":            float(len(df)),
@@ -248,20 +293,26 @@ def train_catboost_model(
         "precision_at_threshold":  float(precision_score(y_true_bin, y_pred_bin, zero_division=0)),
         "recall_at_threshold":     float(recall_score(y_true_bin, y_pred_bin, zero_division=0)),
         "f1_at_threshold":         float(f1_score(y_true_bin, y_pred_bin, zero_division=0)),
-        "best_iteration":          int(model.get_best_iteration() or model.tree_count_),
+        "best_iteration":          best_iter,
         "max_iterations":          _N_ITERATIONS,
     }
 
     models_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path   = models_dir    / "catboost_delay_model.cbm"
-    metrics_path = artifacts_dir / "catboost_metrics.json"
-    lookups_path = artifacts_dir / "delay_lookups.json"
+    model_path    = models_dir    / "lgb_delay_model.txt"
+    metrics_path  = artifacts_dir / "catboost_metrics.json"
+    lookups_path  = artifacts_dir / "delay_lookups.json"
+    encoders_path = artifacts_dir / "label_encoders.json"
+    logs_path     = artifacts_dir / "lgb_training_logs.json"
+    features_path = artifacts_dir / "feature_columns.json"
 
-    model.save_model(model_path)
+    model.save_model(str(model_path))
     metrics_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     lookups_path.write_text(json.dumps(_build_delay_lookups(df), indent=2), encoding="utf-8")
+    encoders_path.write_text(json.dumps(label_encoders, indent=2), encoding="utf-8")
+    logs_path.write_text(json.dumps(evals_result, indent=2), encoding="utf-8")
+    features_path.write_text(json.dumps(active_features, indent=2), encoding="utf-8")
 
     _compute_training_analysis(df_valid, y_valid.values, pred_valid, artifacts_dir)
 

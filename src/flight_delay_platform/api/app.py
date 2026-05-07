@@ -121,28 +121,24 @@ def get_metrics() -> dict:
 
 @app.get("/training-logs")
 def get_training_logs() -> dict:
-    import csv
-    learn_path = PROJECT_ROOT / "catboost_info" / "learn_error.tsv"
-    test_path  = PROJECT_ROOT / "catboost_info" / "test_error.tsv"
-    time_path  = PROJECT_ROOT / "catboost_info" / "time_left.tsv"
-    if not learn_path.exists():
+    logs_path = PROJECT_ROOT / "artifacts" / "lgb_training_logs.json"
+    if not logs_path.exists():
         raise HTTPException(status_code=404, detail="Training logs not found — retrain the model first")
 
-    def read_tsv(path, step=5):
-        rows = []
-        with open(path, newline="") as f:
-            for i, row in enumerate(csv.DictReader(f, delimiter="\t")):
-                if i % step == 0 or i == 0:
-                    rows.append({"iter": int(row["iter"]), "rmse": round(float(row["RMSE"]), 4)})
-        return rows
+    with open(logs_path) as f:
+        evals = json.load(f)
 
-    result = {"train": read_tsv(learn_path), "validation": read_tsv(test_path)}
-    if time_path.exists():
-        with open(time_path, newline="") as f:
-            rows = list(csv.DictReader(f, delimiter="\t"))
-            if rows:
-                result["total_seconds"] = round(float(rows[-1].get("Passed", 0)), 1)
-    return result
+    # evals format: {"train": {"rmse": [...]}, "valid": {"rmse": [...]}}
+    def to_iter_list(values: list, step: int = 5) -> list[dict]:
+        return [
+            {"iter": i, "rmse": round(float(values[i]), 4)}
+            for i in range(0, len(values), step)
+        ]
+
+    return {
+        "train":      to_iter_list(evals.get("train", {}).get("rmse", [])),
+        "validation": to_iter_list(evals.get("valid", {}).get("rmse", [])),
+    }
 
 
 @app.get("/training-analysis")
@@ -175,7 +171,5 @@ def get_feature_importance() -> list[dict]:
     model = load_active_model()
     if model.trained_model is None:
         raise HTTPException(status_code=404, detail="No trained model is loaded")
-    importances = model.trained_model.get_feature_importance()
-    feature_names = model.trained_model.feature_names_
-    pairs = sorted(zip(feature_names, importances), key=lambda x: x[1], reverse=True)
+    pairs = sorted(model.feature_importance(), key=lambda x: x[1], reverse=True)
     return [{"feature": name, "importance": round(float(imp), 4)} for name, imp in pairs]

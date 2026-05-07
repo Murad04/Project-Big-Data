@@ -217,7 +217,7 @@ async function loadMetrics() {
     document.getElementById('m-precision').textContent = m.precision_at_threshold?.toFixed(3) ?? '--';
     document.getElementById('m-recall').textContent    = m.recall_at_threshold?.toFixed(3)    ?? '--';
     document.getElementById('metrics-note').textContent =
-      `Trained on ${(m.sample_count ?? 0).toLocaleString()} NYC flight records (nycflights13) · CatBoost Regressor`;
+      `Trained on ${(m.sample_count ?? 0).toLocaleString()} NYC flight records (nycflights13) · LightGBM Regressor`;
   } catch {
     document.getElementById('metrics-note').textContent = 'Metrics unavailable.';
   }
@@ -298,7 +298,7 @@ async function loadFeatureImportance() {
         },
       },
     });
-    note.textContent = 'CatBoost PredictionValuesChange importance — higher % = stronger influence on predicted delay.';
+    note.textContent = 'LightGBM gain importance — higher % = stronger influence on predicted delay.';
   } catch {
     note.textContent = 'Feature importance unavailable.';
   }

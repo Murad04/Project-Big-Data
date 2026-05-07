@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from ..ml.train import train_catboost_model
+from ..ml.train import train_model
 from .preprocess import download_public_datasets, load_and_prepare_training_data
 
 
@@ -57,7 +57,7 @@ def main() -> None:
         )
         parquet_path = output_dir / "features.parquet"
         print("\n" + "=" * 60)
-        print("STEP 2 - CatBoost Model Training")
+        print("STEP 2 - LightGBM Model Training")
         print("=" * 60)
         df = pd.read_parquet(str(parquet_path))
         print(f"Loaded {len(df):,} rows from Dask Parquet output")
@@ -78,7 +78,7 @@ def main() -> None:
         )
 
     # ── Train ─────────────────────────────────────────────────────────────────
-    result = train_catboost_model(df=df, models_dir=models_dir, artifacts_dir=artifacts_dir)
+    result = train_model(df=df, models_dir=models_dir, artifacts_dir=artifacts_dir)
 
     print("\nTraining complete")
     print(f"model      : {result.model_name}")

@@ -267,7 +267,7 @@
     <p>GWU · Big Data &amp; Cloud Computing · Final Project</p>
   </div>
   <div class="header-badges">
-    <span class="hbadge hl">CatBoost</span>
+    <span class="hbadge hl">LightGBM</span>
     <span class="hbadge hl">Dask</span>
     <span class="hbadge hl">Open-Meteo</span>
     <span class="hbadge">FastAPI</span>
@@ -284,7 +284,7 @@
 
   <div class="flow-card">
     <div class="flow-title">End-to-End Data &amp; ML Pipeline</div>
-    <div class="flow-desc">Live data flow from raw CSVs through Dask preprocessing, CatBoost training, FastAPI serving, and the web frontend.</div>
+    <div class="flow-desc">Live data flow from raw CSVs through Dask preprocessing, LightGBM training, FastAPI serving, and the web frontend.</div>
 
     <div class="flow-diagram">
 
@@ -293,7 +293,7 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">📁</span>
         <div class="fn-title">Data Sources</div>
-        <div class="fn-sub">nyc_flights.csv<br>nyc_weather.csv<br>336 K rows · 2013</div>
+        <div class="fn-sub">nyc_flights.csv<br>nyc_weather.csv<br>328 K rows · 2013</div>
         <span class="fn-tag">CSV</span>
       </div>
 
@@ -319,7 +319,7 @@
         <div class="fn-pulse"></div>
         <span class="fn-icon">🔧</span>
         <div class="fn-title">Feature Engineering</div>
-        <div class="fn-sub">11 features<br>departure_hour · distance<br>route/carrier avg<br>weather · congestion</div>
+        <div class="fn-sub">14 features<br>departure_hour · distance<br>route/carrier avg<br>weather · congestion<br>quarter · is_weekend</div>
         <span class="fn-tag">preprocess.py</span>
       </div>
 
@@ -331,8 +331,8 @@
       <div class="fn" style="--nc:#10b981">
         <div class="fn-pulse"></div>
         <span class="fn-icon">🤖</span>
-        <div class="fn-title">CatBoost</div>
-        <div class="fn-sub">1000 iter · depth 8<br>11 features<br>MAE 18.94 min<br>R² 0.130</div>
+        <div class="fn-title">LightGBM</div>
+        <div class="fn-sub">3000 rounds · 63 leaves<br>14 features<br>MAE 18.43 min<br>R² 0.177</div>
         <span class="fn-tag">train.py</span>
       </div>
 
@@ -389,7 +389,7 @@
         <div class="sub-nodes">
           <div class="sn" style="--nc:#10b981">
             <div class="sn-title">pandas preprocess.py</div>
-            <div class="sn-desc">Default path · random sample · all 10 features computed in memory</div>
+            <div class="sn-desc">Default path · random sample · all 14 features computed in memory</div>
           </div>
           <div class="sn" style="--nc:#8b5cf6">
             <div class="sn-title">dask_preprocess.py  <code style="font-size:0.6rem;color:#a78bfa">--use-dask</code></div>
@@ -397,7 +397,7 @@
           </div>
           <div class="sn" style="--nc:#10b981">
             <div class="sn-title">train_catboost.py</div>
-            <div class="sn-desc">80/20 split · early stopping · saves .cbm + metrics.json + lookups.json (incl. route_distance)</div>
+            <div class="sn-desc">80/20 split · early stopping · saves .txt + metrics.json + lookups.json + label_encoders.json</div>
           </div>
         </div>
       </div>
@@ -405,8 +405,8 @@
         <div class="sub-label">Artifacts</div>
         <div class="sub-nodes">
           <div class="sn" style="--nc:#f59e0b">
-            <div class="sn-title">catboost_delay_model.cbm</div>
-            <div class="sn-desc">Trained CatBoost binary · hot-reloaded by model registry on file change</div>
+            <div class="sn-title">lgb_delay_model.txt</div>
+            <div class="sn-desc">Trained LightGBM model · hot-reloaded by model registry on file change</div>
           </div>
           <div class="sn" style="--nc:#f59e0b">
             <div class="sn-title">catboost_metrics.json</div>
@@ -448,18 +448,18 @@
       <tbody>
         <tr><td>Pandas preprocessing pipeline</td><td>pipelines/preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Dask preprocessing pipeline — parallel, no Java</td><td>pipelines/dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>11-feature engineering — added distance + enhanced weather_severity with wind_gust, temp, humid, pressure</td><td>pipelines/preprocess.py · dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>14-feature engineering — distance, quarter, is_weekend, is_peak_hour + enhanced weather_severity</td><td>pipelines/preprocess.py · dask_preprocess.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Route distance lookup table — auto-resolved from origin+destination at inference</td><td>artifacts/delay_lookups.json</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Live weather auto-fetch — Open-Meteo API called from browser on airport select</td><td>frontend/app.js</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Airport coordinates table — 30 airports, used to call Open-Meteo</td><td>frontend/app.js · AIRPORT_COORDS</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Weather severity JS formula — mirrors Python formula, auto-fills slider</td><td>frontend/app.js · computeWeatherSeverity()</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>CatBoost Regressor training — 1000 iter, depth 8, early stopping</td><td>ml/train.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>LightGBM training — 3000 rounds, 63 leaves, early stopping, label encoding</td><td>ml/train.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Full evaluation metrics — MAE, RMSE, R², F1, Precision, Recall @15min</td><td>artifacts/catboost_metrics.json</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Route &amp; carrier delay lookup tables for inference</td><td>artifacts/delay_lookups.json</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Model registry with hot-reload on file change</td><td>services/model_registry.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>POST /predict — single flight prediction with severity</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>POST /predict/batch — up to 200 flights per call</td><td>api/app.py · api/schemas.py</td><td><span class="tag tag-done">Done</span></td></tr>
-        <tr><td>GET /feature-importance — CatBoost importance scores</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
+        <tr><td>GET /feature-importance — LightGBM gain importance scores</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>GET /metrics · /model-info · /health</td><td>api/app.py</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Web frontend — form, severity ring, prediction history</td><td>frontend/index.html · app.js · styles.css</td><td><span class="tag tag-done">Done</span></td></tr>
         <tr><td>Feature importance bar chart — Chart.js, live from API</td><td>frontend/app.js</td><td><span class="tag tag-done">Done</span></td></tr>
@@ -478,7 +478,7 @@
     <div class="diagram-header">
       <span class="diagram-num">DIAGRAM 1</span>
       <div class="diagram-title">ML Training Pipeline</div>
-      <div class="diagram-desc">Step-by-step flow — two preprocessing paths, CatBoost training with early stopping, and artifact persistence.</div>
+      <div class="diagram-desc">Step-by-step flow — two preprocessing paths, LightGBM training with early stopping, and artifact persistence.</div>
     </div>
     <div class="diagram-wrap">
       <div class="mermaid">
@@ -490,12 +490,12 @@ flowchart TD
     DSK --> PQ["Read Parquet"]
     PAN --> DF
     PQ  --> DF
-    DF["DataFrame\n11 features · 150K rows"] --> SPLIT["80/20 split  seed=42"]
-    SPLIT --> FIT["CatBoostRegressor\n1000 iter · depth 8\nlr=0.05 · early_stop=50"]
+    DF["DataFrame\n14 features · 328K rows"] --> SPLIT["80/20 split  seed=42"]
+    SPLIT --> FIT["lgb.train\n3000 rounds · 63 leaves\nlr=0.05 · early_stop=100"]
     FIT --> EVAL["Evaluate on validation"]
-    EVAL --> S1["catboost_delay_model.cbm"]
-    EVAL --> S2["catboost_metrics.json\nMAE 18.94 · RMSE 36.57\nR2 0.130 · F1 0.479"]
-    EVAL --> S3["delay_lookups.json\nroute_avg · carrier_avg\nroute_distance · overall_distance"]
+    EVAL --> S1["lgb_delay_model.txt"]
+    EVAL --> S2["catboost_metrics.json\nMAE 18.43 · RMSE 35.33\nR2 0.177 · F1 0.488"]
+    EVAL --> S3["delay_lookups.json + label_encoders.json\nroute_avg · carrier_avg\nroute_distance · overall_distance"]
     S1 & S2 & S3 --> DONE(["Done"])
       </div>
     </div>
@@ -514,7 +514,7 @@ flowchart TD
 flowchart LR
     CLI["Browser / Client"]
     subgraph REG["Model Registry"]
-        MDL["CatBoostRegressor\nin memory"]
+        MDL["LightGBM Booster\nin memory"]
         LKP["delay_lookups.json"]
     end
     subgraph API["FastAPI · :8000"]
@@ -539,7 +539,7 @@ flowchart LR
     <div class="diagram-header">
       <span class="diagram-num">DIAGRAM 3</span>
       <div class="diagram-title">Feature Engineering</div>
-      <div class="diagram-desc">How each of the 10 features is derived from raw columns, and how they are resolved at inference time.</div>
+      <div class="diagram-desc">How each of the 14 features is derived from raw columns, and how they are resolved at inference time.</div>
     </div>
     <div class="diagram-wrap">
       <div class="mermaid">
@@ -551,10 +551,13 @@ flowchart LR
         R3["dep_delay"]
         R4["wind · precip · visib"]
     end
-    subgraph FEAT["11 Training Features"]
+    subgraph FEAT["14 Training Features"]
         A["departure_hour  0-23"]
         B["day_of_week  ISO 1-7"]
         C["month  1-12"]
+        CQ["quarter  1-4"]
+        CW["is_weekend  0/1"]
+        CP["is_peak_hour  0/1"]
         D["airline_code  categorical"]
         E["origin · destination  categorical"]
         F["weather_severity  0-10\nwind+precip+vis+gust\n+temp+humid+pressure"]
@@ -570,7 +573,7 @@ flowchart LR
         I4["distance lookup delay_lookups.json\nroute_distance key"]
         I5["weather_severity\nauto-filled by Open-Meteo\nor user slider"]
     end
-    R1 --> A & B & C
+    R1 --> A & B & C & CQ & CW & CP
     R2 --> D & E & J
     R3 --> G & H & I
     R4 --> F

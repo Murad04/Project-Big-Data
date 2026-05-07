@@ -202,6 +202,7 @@ def load_and_prepare_training_data(
             "departure_hour": merged["hour"].astype(int),
             "day_of_week": merged["day_of_week"].astype(int),
             "month": merged["month"].astype(int),
+            "quarter": ((merged["month"].astype(int) - 1) // 3 + 1),
             "airline_code": merged["carrier"].astype(str),
             "origin": merged["origin"].astype(str),
             "destination": merged["dest"].astype(str),

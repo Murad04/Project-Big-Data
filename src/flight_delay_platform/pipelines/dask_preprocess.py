@@ -170,10 +170,11 @@ def run_dask_pipeline(
         distance=merged["distance"].fillna(0.0),
         is_weekend=(merged["day_of_week"] >= 6).astype("int32"),
         is_peak_hour=merged["hour"].isin([7, 8, 9, 16, 17, 18, 19]).astype("int32"),
+        quarter=((merged["month"].astype("int32") - 1) // 3 + 1).astype("int32"),
     )[
         [
             "weather_severity", "airport_congestion", "departure_hour",
-            "day_of_week", "month", "is_weekend", "is_peak_hour",
+            "day_of_week", "month", "quarter", "is_weekend", "is_peak_hour",
             "airline_code", "origin", "destination",
             "route_avg_delay", "carrier_avg_delay", "distance", "delay_minutes",
         ]
@@ -222,7 +223,7 @@ def main() -> None:
         output_path=output_dir,
         max_rows=args.max_rows,
     )
-    print("\nNext step - train CatBoost from Dask output:")
+    print("\nNext step - train LightGBM from Dask output:")
     print("  python -m flight_delay_platform.pipelines.train_catboost --processed-data data/processed/features.parquet")
 
 

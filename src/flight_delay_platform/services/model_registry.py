@@ -8,9 +8,9 @@ from typing import Any
 import pandas as pd
 
 try:
-    from catboost import CatBoostRegressor
-except ModuleNotFoundError:  # pragma: no cover
-    CatBoostRegressor = None  # type: ignore[assignment]
+    import lightgbm as lgb
+except ModuleNotFoundError:
+    lgb = None  # type: ignore[assignment]
 
 
 def _project_root() -> Path:
@@ -23,6 +23,28 @@ def _load_delay_lookups() -> dict[str, Any]:
         with open(path) as f:
             return json.load(f)
     return {"route_avg": {}, "carrier_avg": {}, "overall_avg": 15.0}
+
+
+def _load_label_encoders() -> dict[str, dict[str, int]]:
+    path = _project_root() / "artifacts" / "label_encoders.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    return {}
+
+
+def _load_feature_columns() -> list[str]:
+    path = _project_root() / "artifacts" / "feature_columns.json"
+    if path.exists():
+        with open(path) as f:
+            return json.load(f)
+    # fallback: nycflights13 base features
+    return [
+        "weather_severity", "airport_congestion", "departure_hour",
+        "day_of_week", "month", "quarter", "is_weekend", "is_peak_hour",
+        "airline_code", "origin", "destination",
+        "route_avg_delay", "carrier_avg_delay", "distance",
+    ]
 
 
 def _extract_hour(departure_time: str) -> int:
@@ -55,12 +77,15 @@ class DelayModel:
         distance    = float(_DELAY_LOOKUPS.get("route_distance", {}).get(
                           route_key, _DELAY_LOOKUPS.get("overall_distance", 1000.0)))
 
-        return pd.DataFrame([{
+        month = int(features.get("month", 1))
+        row = {
+            # ── base features ────────────────────────────────────────────────
             "weather_severity":   float(features.get("weather_severity", 0.0)),
             "airport_congestion": float(features.get("airport_congestion", 0.0)),
             "departure_hour":     dep_hour,
             "day_of_week":        dow,
-            "month":              int(features.get("month", 1)),
+            "month":              month,
+            "quarter":            (month - 1) // 3 + 1,
             "is_weekend":         int(dow >= 6),
             "is_peak_hour":       int(dep_hour in (7, 8, 9, 16, 17, 18, 19)),
             "airline_code":       airline,
@@ -69,7 +94,25 @@ class DelayModel:
             "route_avg_delay":    route_avg,
             "carrier_avg_delay":  carrier_avg,
             "distance":           distance,
-        }])
+            # ── BTS features (default 0 = no known previous delay / no cause data)
+            "prev_tail_delay":    float(features.get("prev_tail_delay", 0.0)),
+            "late_aircraft_flag": int(features.get("late_aircraft_flag", 0)),
+            "weather_delay":      float(features.get("weather_delay", 0.0)),
+            "carrier_delay":      float(features.get("carrier_delay", 0.0)),
+            "nas_delay":          float(features.get("nas_delay", 0.0)),
+        }
+
+        df = pd.DataFrame([row])
+
+        # Keep only columns the model was actually trained on
+        df = df[[c for c in _FEATURE_COLUMNS if c in df.columns]]
+
+        # Apply label encoding to match training-time integer codes
+        for col, mapping in _LABEL_ENCODERS.items():
+            if col in df.columns:
+                df[col] = df[col].map(mapping).fillna(len(mapping)).astype(int)
+
+        return df
 
     def predict(self, features: dict[str, Any]) -> float:
         if self.trained_model is not None:
@@ -91,44 +134,49 @@ class DelayModel:
         if self.trained_model is None:
             return {}
         try:
-            from catboost import Pool
             df = self._build_row(features)
-            cat_idx = [i for i, col in enumerate(df.columns)
-                       if col in {"airline_code", "origin", "destination"}]
-            pool = Pool(df, cat_features=cat_idx)
-            shap_vals = self.trained_model.get_feature_importance(pool, type="ShapValues")
+            # pred_contrib returns (n_samples, n_features + 1); last col is expected value
+            contribs = self.trained_model.predict(df, pred_contrib=True)
             return {
-                col: round(float(shap_vals[0][i]), 2)
+                col: round(float(contribs[0][i]), 2)
                 for i, col in enumerate(df.columns)
             }
         except Exception:
             return {}
 
+    def feature_importance(self) -> list[tuple[str, float]]:
+        if self.trained_model is None:
+            return []
+        names = self.trained_model.feature_name()
+        scores = self.trained_model.feature_importance(importance_type="gain").tolist()
+        return list(zip(names, [float(s) for s in scores]))
+
 
 def _load_trained_model() -> DelayModel | None:
-    if CatBoostRegressor is None:
+    if lgb is None:
         return None
 
-    model_path = _project_root() / "models" / "catboost_delay_model.cbm"
+    model_path = _project_root() / "models" / "lgb_delay_model.txt"
     if not model_path.exists():
         return None
 
-    trained_model = CatBoostRegressor()
-    trained_model.load_model(model_path)
+    trained_model = lgb.Booster(model_file=str(model_path))
     return DelayModel(
-        name="catboost-delay-regressor",
+        name="lgb-delay-regressor",
         trained_model=trained_model,
         source=str(model_path),
     )
 
 
 _DELAY_LOOKUPS: dict[str, Any] = _load_delay_lookups()
+_LABEL_ENCODERS: dict[str, dict[str, int]] = _load_label_encoders()
+_FEATURE_COLUMNS: list[str] = _load_feature_columns()
 _ACTIVE_MODEL: DelayModel = _load_trained_model() or DelayModel(name="baseline-rule-model", source="baseline")
 _ACTIVE_MODEL_MTIME: float | None = None
 
 
 def _model_path() -> Path:
-    return _project_root() / "models" / "catboost_delay_model.cbm"
+    return _project_root() / "models" / "lgb_delay_model.txt"
 
 
 def _needs_reload(path: Path) -> bool:
@@ -150,12 +198,13 @@ def _needs_reload(path: Path) -> bool:
 
 
 def load_active_model() -> DelayModel:
-    global _ACTIVE_MODEL, _DELAY_LOOKUPS
+    global _ACTIVE_MODEL, _DELAY_LOOKUPS, _LABEL_ENCODERS, _FEATURE_COLUMNS
 
     trained_path = _model_path()
     if _needs_reload(trained_path):
-        # Reload lookups too whenever the model is refreshed
-        _DELAY_LOOKUPS = _load_delay_lookups()
+        _DELAY_LOOKUPS   = _load_delay_lookups()
+        _LABEL_ENCODERS  = _load_label_encoders()
+        _FEATURE_COLUMNS = _load_feature_columns()
         refreshed = _load_trained_model()
         if refreshed is not None:
             _ACTIVE_MODEL = refreshed
